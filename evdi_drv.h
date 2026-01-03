@@ -37,7 +37,6 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_ioctl.h>
 #include <drm/drm_file.h>
-#include <drm/drm_gem.h>
 #include <drm/drm_vblank.h>
 #elif KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 #include <drm/drm_drv.h>
@@ -46,8 +45,10 @@
 #include <drm/drmP.h>
 #endif
 
+#include <drm/drm_gem.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_plane_helper.h>
 #include <drm/drm_encoder.h>
 #include <drm/drm_connector.h>
 
@@ -195,9 +196,7 @@ struct evdi_gem_object {
 	atomic_t pages_pin_count;
 	struct mutex pages_lock;
 	void *vmapping;
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
 	bool vmap_is_iomem;
-#endif
 	bool vmap_is_vmram;
 	struct sg_table *sg;
 };
@@ -283,8 +282,19 @@ static inline void evdi_gem_object_put(struct drm_gem_object *obj)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 	drm_gem_object_put(obj);
-#else
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 	drm_gem_object_put_unlocked(obj);
+#else
+	drm_gem_object_unreference_unlocked(obj);
+#endif
+}
+
+static inline void evdi_gem_object_get(struct drm_gem_object *obj)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	drm_gem_object_get(obj);
+#else
+	drm_gem_object_reference(obj);
 #endif
 }
 
@@ -350,8 +360,10 @@ int evdi_gem_vmap(struct evdi_gem_object *obj);
 void evdi_gem_vunmap(struct evdi_gem_object *obj);
 #if KERNEL_VERSION(4, 17, 0) <= LINUX_VERSION_CODE
 vm_fault_t evdi_gem_fault(struct vm_fault *vmf);
-#else
+#elif KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 int evdi_gem_fault(struct vm_fault *vmf);
+#else
+int evdi_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 #endif
 
 /* evdi_sysfs.c */
@@ -407,7 +419,7 @@ static __always_inline void evdi_smp_mb(void)
 }
 
 /* Macros */
-#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
+#if KERNEL_VERSION(4, 8, 0) <= LINUX_VERSION_CODE
 #define EVDI_HAVE_DRM_OPEN_CLOSE 1
 #else
 #define EVDI_HAVE_DRM_OPEN_CLOSE 0
@@ -475,5 +487,18 @@ extern struct evdi_perf_counters evdi_perf;
 
 /* External vm_ops */
 extern const struct vm_operations_struct evdi_gem_vm_ops;
+
+#if KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE
+#define evdi_access_ok(addr, size) access_ok(VERIFY_WRITE, addr, size)
+#else
+#define evdi_access_ok(addr, size) access_ok(addr, size)
+#endif
+
+#if KERNEL_VERSION(4, 15, 0) > LINUX_VERSION_CODE
+static inline void drm_dev_put(struct drm_device *dev)
+{
+	drm_dev_unref(dev);
+}
+#endif
 
 #endif /* __EVDI_DRV_H__ */

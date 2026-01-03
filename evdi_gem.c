@@ -9,6 +9,7 @@
  * more details.
  */
 
+#include "evdi_drv.h"
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 #include <drm/drm_cache.h>
@@ -19,14 +20,9 @@
 #include <linux/iosys-map.h>
 #endif
 
-#include <drm/drm_gem.h>
-#include <drm/drm_prime.h>
-
 #if defined(MODULE_IMPORT_NS) && defined(DMA_BUF)
 MODULE_IMPORT_NS(DMA_BUF);
 #endif
-
-#include "evdi_drv.h"
 
 static int evdi_pin_pages(struct evdi_gem_object *obj);
 static void evdi_unpin_pages(struct evdi_gem_object *obj);
@@ -104,19 +100,27 @@ struct evdi_gem_object *evdi_gem_alloc_object(struct drm_device *dev, size_t siz
 {
 	struct evdi_gem_object *obj;
 
-	if (unlikely(!size))
+	if (unlikely(!size)) {
+		evdi_err("invalid gem size");
 		return NULL;
+	}
 
+	evdi_err("Allocating GEM object size: %zu", size);
 	size = round_up(size, PAGE_SIZE);
 
 	obj = kzalloc(sizeof(*obj), GFP_KERNEL);
-	if (obj == NULL)
+	if (obj == NULL) {
+		evdi_err("kzalloc failed for struct");
 		return NULL;
+	}
 
 	if (drm_gem_object_init(dev, &obj->base, size) != 0) {
 		kfree(obj);
 		return NULL;
 	}
+
+	obj->vmap_is_iomem = false;
+	obj->vmap_is_vmram = false;
 
 	atomic_set(&obj->pages_pin_count, 0);
 
@@ -130,7 +134,7 @@ struct evdi_gem_object *evdi_gem_alloc_object(struct drm_device *dev, size_t siz
 }
 
 int evdi_gem_create(struct drm_file *file, struct drm_device *dev,
-		    uint64_t size, uint32_t *handle_p)
+					uint64_t size, uint32_t *handle_p)
 {
 	struct evdi_gem_object *obj;
 	int ret;
@@ -149,11 +153,7 @@ int evdi_gem_create(struct drm_file *file, struct drm_device *dev,
 		return ret;
 	}
 
-#if KERNEL_VERSION(5, 9, 0) <= LINUX_VERSION_CODE
-	drm_gem_object_put(&obj->base);
-#else
-	drm_gem_object_put_unlocked(&obj->base);
-#endif
+	evdi_gem_object_put(&obj->base);
 
 	*handle_p = handle;
 	return 0;
@@ -165,16 +165,16 @@ static int evdi_align_pitch(int width, int cpp)
 	int pitch_mask = 0;
 
 	switch (cpp) {
-	case 1:
-		pitch_mask = 255;
-		break;
-	case 2:
-		pitch_mask = 127;
-		break;
-	case 3:
-	case 4:
-		pitch_mask = 63;
-		break;
+		case 1:
+			pitch_mask = 255;
+			break;
+		case 2:
+			pitch_mask = 127;
+			break;
+		case 3:
+		case 4:
+			pitch_mask = 63;
+			break;
 	}
 
 	aligned += pitch_mask;
@@ -183,7 +183,7 @@ static int evdi_align_pitch(int width, int cpp)
 }
 
 int evdi_dumb_create(struct drm_file *file, struct drm_device *dev,
-		     struct drm_mode_create_dumb *args)
+					 struct drm_mode_create_dumb *args)
 {
 	args->pitch = evdi_align_pitch(args->width, DIV_ROUND_UP(args->bpp, 8));
 	args->size = args->pitch * args->height;
@@ -200,7 +200,7 @@ int evdi_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 
 #if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
 	vm_flags_mod(vma, VM_MIXEDMAP | VM_DONTDUMP | VM_DONTEXPAND | VM_DONTCOPY,
-		     VM_PFNMAP);
+			  VM_PFNMAP);
 #else
 	vma->vm_flags &= ~VM_PFNMAP;
 	vma->vm_flags |= VM_MIXEDMAP | VM_DONTDUMP | VM_DONTEXPAND | VM_DONTCOPY;
@@ -216,19 +216,22 @@ int evdi_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 #if KERNEL_VERSION(4, 17, 0) <= LINUX_VERSION_CODE
 vm_fault_t evdi_gem_fault(struct vm_fault *vmf)
 {
-	struct vm_area_struct *vma = vmf->vma;
-#else
+struct vm_area_struct *vma = vmf->vma;
+#elif KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
 int evdi_gem_fault(struct vm_fault *vmf)
 {
-	struct vm_area_struct *vma = vmf->vma;
-#endif
+struct vm_area_struct *vma = vmf->vma;
+#else
+int evdi_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+{
+	#endif
 	struct evdi_gem_object *obj = to_evdi_bo(vma->vm_private_data);
 	struct page *page;
 	pgoff_t page_offset;
 	loff_t num_pages;
-	int ret = 0;
+	int ret;
 
-	page_offset = (vmf->address - vma->vm_start) >> PAGE_SHIFT;
+	page_offset = vmf->pgoff;
 	num_pages = obj->base.size >> PAGE_SHIFT;
 
 	if (!obj->pages || page_offset >= num_pages)
@@ -239,19 +242,21 @@ int evdi_gem_fault(struct vm_fault *vmf)
 #if KERNEL_VERSION(4, 17, 0) <= LINUX_VERSION_CODE
 	ret = vmf_insert_page(vma, vmf->address, page);
 #else
-	ret = vm_insert_page(vma, vmf->address, page);
+	ret = vm_insert_page(vma,
+					  (unsigned long)vmf->virtual_address,
+					  page);
 #endif
 
 	switch (ret) {
-	case -EAGAIN:
-	case 0:
-	case -ERESTARTSYS:
-	case -EBUSY:
-		return VM_FAULT_NOPAGE;
-	case -ENOMEM:
-		return VM_FAULT_OOM;
-	default:
-		return VM_FAULT_SIGBUS;
+		case 0:
+		case -EAGAIN:
+		case -ERESTARTSYS:
+		case -EBUSY:
+			return VM_FAULT_NOPAGE;
+		case -ENOMEM:
+			return VM_FAULT_OOM;
+		default:
+			return VM_FAULT_SIGBUS;
 	}
 }
 
@@ -331,38 +336,54 @@ int evdi_gem_vmap(struct evdi_gem_object *obj)
 	int page_count = DIV_ROUND_UP(obj->base.size, PAGE_SIZE);
 	int ret;
 
+	if (unlikely(!obj))
+		return -EINVAL;
+
+	obj->vmap_is_iomem = false;
+	obj->vmap_is_vmram = false;
+
 	if (evdi_drm_gem_object_use_import_attach(&obj->base)) {
 #if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
-		{
-			int retm;
+		int retm;
 #if KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE
-			struct iosys_map map;
-			iosys_map_set_vaddr(&map, NULL);
-#else
-			struct dma_buf_map map = DMA_BUF_MAP_INIT_VADDR(NULL);
-#endif
-			retm = dma_buf_vmap(obj->base.import_attach->dmabuf, &map);
-			if (retm)
-				return -ENOMEM;
+		struct iosys_map map;
+
+		iosys_map_set_vaddr(&map, NULL);
+		retm = dma_buf_vmap(obj->base.import_attach->dmabuf, &map);
+		if (retm)
+			return -ENOMEM;
 
 #ifdef IOSYS_MAP_IS_IOMEM
-			obj->vmap_is_iomem = iosys_map_is_iomem(&map);
-			obj->vmapping = obj->vmap_is_iomem ?
-				(void __force *)map.vaddr_iomem :
-				(void *)map.vaddr;
+		obj->vmap_is_iomem = iosys_map_is_iomem(&map);
+		obj->vmapping = obj->vmap_is_iomem ?
+			(void __force *)map.vaddr_iomem :
+			(void *)map.vaddr;
 #else
-			obj->vmap_is_iomem = map.is_iomem;
-			obj->vmapping = map.vaddr;
-#endif
-		}
-#else
+		obj->vmap_is_iomem = map.is_iomem;
+		obj->vmapping = map.vaddr;
+#endif /* IOSYS_MAP_IS_IOMEM */
+
+#else /* < 5.18 */
+		struct dma_buf_map map = DMA_BUF_MAP_INIT_VADDR(NULL);
+
+		retm = dma_buf_vmap(obj->base.import_attach->dmabuf, &map);
+		if (retm)
+			return -ENOMEM;
+
+		obj->vmap_is_iomem = map.is_iomem;
+		obj->vmapping = map.vaddr;
+#endif /* 5.18 */
+
+		return 0;
+#else /* < 5.11 */
 		obj->vmapping = dma_buf_vmap(obj->base.import_attach->dmabuf);
-		obj->vmap_is_iomem = false;
 		if (!obj->vmapping)
 			return -ENOMEM;
-#endif
+
+		obj->vmap_is_iomem = false;
 		return 0;
- 	}
+#endif
+	}
 
 	ret = evdi_pin_pages(obj);
 	if (ret)
@@ -373,53 +394,64 @@ int evdi_gem_vmap(struct evdi_gem_object *obj)
 #else
 	obj->vmapping = vm_map_ram(obj->pages, page_count, -1, PAGE_KERNEL);
 #endif
-	obj->vmap_is_vmram = obj->vmapping != NULL;
 
-	if (!obj->vmapping) {
-		obj->vmapping = vmap(obj->pages, page_count, 0, PAGE_KERNEL);
-		if (!obj->vmapping)
-			return -ENOMEM;
+	if (obj->vmapping) {
+		obj->vmap_is_vmram = true;
+		return 0;
 	}
 
+	obj->vmapping = vmap(obj->pages, page_count, 0, PAGE_KERNEL);
+	if (!obj->vmapping)
+		return -ENOMEM;
+
+	obj->vmap_is_vmram = false;
 	return 0;
 }
 
 void evdi_gem_vunmap(struct evdi_gem_object *obj)
 {
+	if (unlikely(!obj || !obj->vmapping))
+		return;
+
 	if (evdi_drm_gem_object_use_import_attach(&obj->base)) {
 #if KERNEL_VERSION(5, 18, 0) <= LINUX_VERSION_CODE
-		{
-			struct iosys_map map;
+		struct iosys_map map;
+
 #ifdef IOSYS_MAP_IS_IOMEM
-			if (obj->vmap_is_iomem)
-				iosys_map_set_vaddr_iomem(&map, (void __iomem *)obj->vmapping);
-			else
-				iosys_map_set_vaddr(&map, obj->vmapping);
+		if (obj->vmap_is_iomem)
+			iosys_map_set_vaddr_iomem(
+				&map, (void __iomem *)obj->vmapping);
+		else
+			iosys_map_set_vaddr(&map, obj->vmapping);
 #else
-			if (obj->vmap_is_iomem)
-				iosys_map_set_vaddr_iomem(&map, (void __iomem *)obj->vmapping);
-			else
-				iosys_map_set_vaddr(&map, obj->vmapping);
+		if (obj->vmap_is_iomem)
+			iosys_map_set_vaddr_iomem(
+				&map, (void __iomem *)obj->vmapping);
+		else
+			iosys_map_set_vaddr(&map, obj->vmapping);
 #endif
-			dma_buf_vunmap(obj->base.import_attach->dmabuf, &map);
-		}
-#else
+		dma_buf_vunmap(obj->base.import_attach->dmabuf, &map);
+#else /* < 5.18 */
 		dma_buf_vunmap(obj->base.import_attach->dmabuf, obj->vmapping);
 #endif
-		obj->vmap_is_iomem = false;
 		obj->vmapping = NULL;
+		obj->vmap_is_iomem = false;
+		obj->vmap_is_vmram = false;
 		return;
 	}
 
-	if (obj->vmapping) {
-		if (obj->vmap_is_vmram)
-			vm_unmap_ram(obj->vmapping, DIV_ROUND_UP(obj->base.size, PAGE_SIZE));
-		else
-			vunmap(obj->vmapping);
-		obj->vmapping = NULL;
-		obj->vmap_is_vmram = false;
-		evdi_unpin_pages(obj);
+	if (obj->vmap_is_vmram) {
+		vm_unmap_ram(obj->vmapping,
+			   DIV_ROUND_UP(obj->base.size, PAGE_SIZE));
+	} else {
+		vunmap(obj->vmapping);
 	}
+
+	obj->vmapping = NULL;
+	obj->vmap_is_vmram = false;
+	obj->vmap_is_iomem = false;
+
+	evdi_unpin_pages(obj);
 }
 
 void evdi_gem_free_object(struct drm_gem_object *gem_obj)
@@ -493,8 +525,8 @@ struct sg_table *evdi_prime_get_sg_table(struct drm_gem_object *obj)
 }
 
 struct drm_gem_object *evdi_prime_import_sg_table(struct drm_device *dev,
-						   struct dma_buf_attachment *attach,
-						   struct sg_table *sg)
+												  struct dma_buf_attachment *attach,
+												  struct sg_table *sg)
 {
 	struct evdi_gem_object *obj;
 

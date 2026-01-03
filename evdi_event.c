@@ -359,7 +359,7 @@ struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
 				   struct drm_file *owner)
 {
 	struct evdi_event *event;
-	int cur_alloc, peak, new_peak;
+	int cur_alloc, peak;
 	gfp_t gfp = GFP_ATOMIC;
 
 	event = evdi_pcpu_event_pop();
@@ -411,6 +411,7 @@ init_event:
 	cur_alloc = atomic_inc_return(&global_event_pool.allocated);
 #ifdef EVDI_HAVE_ATOMIC_CMPXCHG_RELAXED
 	do {
+		int new_peak;
 		peak = atomic_read(&global_event_pool.peak_usage);
 		new_peak = max(cur_alloc, peak);
 	} while (peak != new_peak &&

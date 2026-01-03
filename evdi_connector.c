@@ -115,6 +115,7 @@ static const struct drm_connector_funcs evdi_connector_funcs = {
 };
 #else
 static const struct drm_connector_funcs evdi_connector_funcs = {
+	.dpms = drm_helper_connector_dpms,
 	.detect = evdi_connector_detect,
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.destroy = drm_connector_cleanup,

@@ -10,16 +10,12 @@
  */
 
 #include "evdi_drv.h"
-#include <drm/drm_gem_framebuffer_helper.h>
-#include <drm/drm_atomic_helper.h>
 
 static const struct drm_mode_config_funcs evdi_mode_config_funcs = {
-#if EVDI_HAVE_ATOMIC_HELPERS
 	.fb_create	= evdi_fb_user_fb_create,
+#if EVDI_HAVE_ATOMIC_HELPERS
 	.atomic_check	= drm_atomic_helper_check,
 	.atomic_commit	= drm_atomic_helper_commit,
-#else
-	.fb_create	= evdi_fb_user_fb_create,
 #endif
 };
 
@@ -29,8 +25,11 @@ static const uint32_t evdi_formats[] = {
 };
 
 static void evdi_pipe_enable(struct drm_simple_display_pipe *pipe,
-			     struct drm_crtc_state *crtc_state,
-			     struct drm_plane_state *plane_state)
+							 struct drm_crtc_state *crtc_state
+#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
+							 , struct drm_plane_state *plane_state
+#endif
+							 )
 {
 	drm_crtc_vblank_on(&pipe->crtc);
 }
@@ -41,7 +40,7 @@ static void evdi_pipe_disable(struct drm_simple_display_pipe *pipe)
 }
 
 static void evdi_pipe_update(struct drm_simple_display_pipe *pipe,
-			     struct drm_plane_state *old_state)
+							 struct drm_plane_state *old_state)
 {
 	struct drm_plane_state *state = pipe->plane.state;
 	struct evdi_device *evdi = pipe->plane.dev->dev_private;
@@ -69,18 +68,79 @@ static void evdi_pipe_update(struct drm_simple_display_pipe *pipe,
 
 	if (efb && efb->owner && efb->gralloc_buf_id)
 		evdi_queue_swap_event(evdi,
-				      efb->gralloc_buf_id,
-				      evdi_connector_slot(evdi, pipe->connector),
-				      efb->owner);
+							  efb->gralloc_buf_id,
+							  evdi_connector_slot(evdi, pipe->connector),
+							  efb->owner);
 
 	if (unlikely(!READ_ONCE(evdi->drm_client)))
 		return;
 }
 
-static const struct drm_simple_display_pipe_funcs evdi_pipe_funcs = {
-	.enable		= evdi_pipe_enable,
-	.disable	= evdi_pipe_disable,
-	.update		= evdi_pipe_update,
+static void evdi_crtc_enable(struct drm_crtc *crtc)
+{
+	struct evdi_device *evdi = crtc->dev->dev_private;
+	int i;
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
+
+	if (i < LINDROID_MAX_CONNECTORS)
+		evdi_pipe_enable(&evdi->pipe[i], evdi->pipe[i].crtc.state);
+}
+
+static void evdi_crtc_disable(struct drm_crtc *crtc)
+{
+	struct evdi_device *evdi = crtc->dev->dev_private;
+	int i;
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
+
+	if (i < LINDROID_MAX_CONNECTORS)
+		evdi_pipe_disable(&evdi->pipe[i]);
+}
+
+static void evdi_crtc_commit(struct drm_crtc *crtc)
+{
+	struct evdi_device *evdi = crtc->dev->dev_private;
+	int i;
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
+
+	if (i < LINDROID_MAX_CONNECTORS)
+		evdi_pipe_update(&evdi->pipe[i], NULL);
+}
+
+static int evdi_crtc_set_config(struct drm_mode_set *set)
+{
+	return 0;
+}
+
+static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
+	.mode_set = NULL,
+	.dpms = NULL,
+	.commit = evdi_crtc_commit,
+	.enable = evdi_crtc_enable,
+	.disable = evdi_crtc_disable,
+};
+
+static const struct drm_crtc_funcs evdi_crtc_funcs = {
+	.reset = NULL,
+	.destroy = drm_crtc_cleanup,
+	.set_config = evdi_crtc_set_config,
+	.page_flip = NULL,
+};
+
+static const struct drm_plane_funcs evdi_plane_funcs = {
+	.update_plane = drm_plane_helper_update,
+	.disable_plane = drm_plane_helper_disable,
+	.destroy = drm_plane_cleanup,
+	.reset = NULL,
+};
+
+static const struct drm_encoder_funcs evdi_encoder_funcs = {
+	.destroy = drm_encoder_cleanup,
 };
 
 int evdi_modeset_init(struct drm_device *dev)
@@ -88,11 +148,25 @@ int evdi_modeset_init(struct drm_device *dev)
 	struct evdi_device *evdi = dev->dev_private;
 	int ret, i;
 
+#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 	ret = drm_mode_config_init(dev);
 	if (ret) {
 		evdi_err("Failed to initialize mode config: %d", ret);
 		return ret;
 	}
+#else
+	drm_mode_config_init(dev);
+#endif
+
+#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
+	dev->vma_offset_manager = kzalloc(sizeof(struct drm_vma_offset_manager), GFP_KERNEL);
+	if (!dev->vma_offset_manager) {
+		evdi_err("Failed to allocate VMA offset manager");
+		ret = -ENOMEM;
+		goto err_connector;
+	}
+	drm_vma_offset_manager_init(dev->vma_offset_manager, 0, ~0UL);
+#endif
 
 	dev->mode_config.min_width = 640;
 	dev->mode_config.min_height = 480;
@@ -109,12 +183,41 @@ int evdi_modeset_init(struct drm_device *dev)
 		evdi_err("Failed to initialize connector: %d", ret);
 		goto err_connector;
 	}
+
 	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++) {
-		ret = drm_simple_display_pipe_init(dev, &evdi->pipe[i], &evdi_pipe_funcs,
-						   evdi_formats, ARRAY_SIZE(evdi_formats),
-						   NULL, evdi->connector[i]);
+		struct drm_plane *plane = &evdi->pipe[i].plane;
+		struct drm_crtc *crtc = &evdi->pipe[i].crtc;
+		struct drm_encoder *encoder = &evdi->pipe[i].encoder;
+		struct drm_connector *connector = evdi->connector[i];
+
+		ret = drm_universal_plane_init(dev, plane, 0,
+									   &evdi_plane_funcs,
+									   evdi_formats, ARRAY_SIZE(evdi_formats),
+									   DRM_PLANE_TYPE_PRIMARY, NULL);
 		if (ret) {
-			evdi_err("Failed to initialize simple display pipe[%d]: %d", i, ret);
+			evdi_err("Failed to initialize plane[%d]: %d", i, ret);
+			goto err_pipe;
+		}
+
+		drm_crtc_helper_add(crtc, &evdi_crtc_helper_funcs);
+		ret = drm_crtc_init_with_planes(dev, crtc, plane, NULL,
+										&evdi_crtc_funcs, NULL);
+		if (ret) {
+			evdi_err("Failed to initialize crtc[%d]: %d", i, ret);
+			goto err_pipe;
+		}
+
+		encoder->possible_crtcs = 1 << drm_crtc_index(crtc);
+		ret = drm_encoder_init(dev, encoder, &evdi_encoder_funcs,
+							   DRM_MODE_ENCODER_NONE, NULL);
+		if (ret) {
+			evdi_err("Failed to initialize encoder[%d]: %d", i, ret);
+			goto err_pipe;
+		}
+
+		ret = drm_mode_connector_attach_encoder(connector, encoder);
+		if (ret) {
+			evdi_err("Failed to attach connector[%d]: %d", i, ret);
 			goto err_pipe;
 		}
 	}
@@ -125,6 +228,13 @@ int evdi_modeset_init(struct drm_device *dev)
 err_pipe:
 	evdi_connector_cleanup(evdi);
 err_connector:
+#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
+	if (dev->vma_offset_manager) {
+		drm_vma_offset_manager_destroy(dev->vma_offset_manager);
+		kfree(dev->vma_offset_manager);
+		dev->vma_offset_manager = NULL;
+	}
+#endif
 	drm_mode_config_cleanup(dev);
 	return ret;
 }
@@ -132,6 +242,21 @@ err_connector:
 void evdi_modeset_cleanup(struct drm_device *dev)
 {
 	struct evdi_device *evdi = dev->dev_private;
+	int i;
+
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++) {
+		drm_encoder_cleanup(&evdi->pipe[i].encoder);
+		drm_crtc_cleanup(&evdi->pipe[i].crtc);
+		drm_plane_cleanup(&evdi->pipe[i].plane);
+	}
+
+#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
+	if (dev->vma_offset_manager) {
+		drm_vma_offset_manager_destroy(dev->vma_offset_manager);
+		kfree(dev->vma_offset_manager);
+		dev->vma_offset_manager = NULL;
+	}
+#endif
 
 	evdi_connector_cleanup(evdi);
 

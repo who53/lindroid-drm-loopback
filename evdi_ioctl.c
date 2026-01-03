@@ -17,8 +17,13 @@
 #include <linux/prefetch.h>
 #include <linux/completion.h>
 #include <linux/compat.h>
-#include <linux/sched/signal.h>
 #include <linux/errno.h>
+
+#if KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
+#include <linux/sched/signal.h>
+#else
+#include <linux/sched.h>
+#endif
 
 static int evdi_queue_create_event_with_id(struct evdi_device *evdi, struct drm_evdi_gbm_create_buff *params, struct drm_file *owner, int poll_id);
 int evdi_queue_destroy_event(struct evdi_device *evdi, int id, struct drm_file *owner);
@@ -684,10 +689,10 @@ int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data, struct drm_fi
 
 	u_id = cmd->id;
 	u_stride = cmd->stride;
-	if (u_id && !access_ok(u_id, sizeof(*u_id)))
+	if (u_id && !evdi_access_ok(u_id, sizeof(*u_id)))
 		return -EFAULT;
 
-	if (u_stride && !access_ok(u_stride, sizeof(*u_stride)))
+	if (u_stride && !evdi_access_ok(u_stride, sizeof(*u_stride)))
 		return -EFAULT;
 
 	req = evdi_inflight_alloc(evdi, file, create_buf, &poll_id);
