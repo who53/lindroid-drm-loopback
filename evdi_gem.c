@@ -105,7 +105,6 @@ struct evdi_gem_object *evdi_gem_alloc_object(struct drm_device *dev, size_t siz
 		return NULL;
 	}
 
-	evdi_err("Allocating GEM object size: %zu", size);
 	size = round_up(size, PAGE_SIZE);
 
 	obj = kzalloc(sizeof(*obj), GFP_KERNEL);

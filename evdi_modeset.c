@@ -24,92 +24,93 @@ static const uint32_t evdi_formats[] = {
 	DRM_FORMAT_ARGB8888,
 };
 
-static void evdi_pipe_enable(struct drm_simple_display_pipe *pipe,
-							 struct drm_crtc_state *crtc_state
+static void evdi_do_pipe_update(struct drm_simple_display_pipe *pipe)
+{
+	struct drm_framebuffer *fb = pipe->plane.fb;
+    	struct evdi_device *evdi = pipe->plane.dev->dev_private;
+    	struct evdi_framebuffer *efb;
+
+    	if (!fb)
+    	    return;
+
+    	efb = to_evdi_fb(fb);
+    	if (efb && efb->owner && efb->gralloc_buf_id)
+    	    evdi_queue_swap_event(evdi,
+    	                  efb->gralloc_buf_id,
+    	                  evdi_connector_slot(evdi, pipe->connector),
+    	                  efb->owner);
+}
+
+static int evdi_crtc_page_flip(struct drm_crtc *crtc,
+                   struct drm_framebuffer *fb,
+                   struct drm_pending_vblank_event *event,
+                   uint32_t flags)
+{
+	struct evdi_device *evdi = crtc->dev->dev_private;
+    	struct drm_plane *plane = crtc->primary;
+    	int i;
+
+    	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+    	    if (&evdi->pipe[i].crtc == crtc)
+    	        break;
+
+    	if (i >= LINDROID_MAX_CONNECTORS)
+    	    return -ENODEV;
+
+    	plane->fb = fb;
+
+    	evdi_do_pipe_update(&evdi->pipe[i]);
+
+    	if (event) {
+    	    unsigned long flags;
+    	    spin_lock_irqsave(&crtc->dev->event_lock, flags);
+    	    drm_crtc_send_vblank_event(crtc, event);
+    	    spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+    	}
+
+    	return 0;
+}
+
 #if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
-							 , struct drm_plane_state *plane_state
-#endif
-							 )
-{
-	drm_crtc_vblank_on(&pipe->crtc);
-}
-
-static void evdi_pipe_disable(struct drm_simple_display_pipe *pipe)
-{
-	drm_crtc_vblank_off(&pipe->crtc);
-}
-
 static void evdi_pipe_update(struct drm_simple_display_pipe *pipe,
-							 struct drm_plane_state *old_state)
+                 struct drm_plane_state *old_state)
 {
 	struct drm_plane_state *state = pipe->plane.state;
-	struct evdi_device *evdi = pipe->plane.dev->dev_private;
-	struct drm_framebuffer *fb = state ? state->fb : NULL;
-	struct drm_pending_vblank_event *vblank_ev;
-	struct drm_device *ddev;
-	struct evdi_framebuffer *efb;
-	unsigned long flags;
-
-	drm_crtc_handle_vblank(&pipe->crtc);
-
-	if (pipe->crtc.state && pipe->crtc.state->event) {
-		ddev = pipe->crtc.dev;
-		vblank_ev = pipe->crtc.state->event;
-		pipe->crtc.state->event = NULL;
-		spin_lock_irqsave(&ddev->event_lock, flags);
-		drm_crtc_send_vblank_event(&pipe->crtc, vblank_ev);
-		spin_unlock_irqrestore(&ddev->event_lock, flags);
-	}
-
-	if (!fb)
-		return;
-
-	efb = to_evdi_fb(fb);
-
-	if (efb && efb->owner && efb->gralloc_buf_id)
-		evdi_queue_swap_event(evdi,
-							  efb->gralloc_buf_id,
-							  evdi_connector_slot(evdi, pipe->connector),
-							  efb->owner);
-
-	if (unlikely(!READ_ONCE(evdi->drm_client)))
-		return;
+    	if (state && old_state && old_state->fb == state->fb)
+    	    return;
+    	evdi_do_pipe_update(pipe);
 }
-
-static void evdi_crtc_enable(struct drm_crtc *crtc)
+#else
+static void evdi_pipe_update(struct drm_simple_display_pipe *pipe)
 {
-	struct evdi_device *evdi = crtc->dev->dev_private;
-	int i;
-	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-		if (&evdi->pipe[i].crtc == crtc)
-			break;
-
-	if (i < LINDROID_MAX_CONNECTORS)
-		evdi_pipe_enable(&evdi->pipe[i], evdi->pipe[i].crtc.state);
+	evdi_do_pipe_update(pipe);
 }
-
-static void evdi_crtc_disable(struct drm_crtc *crtc)
-{
-	struct evdi_device *evdi = crtc->dev->dev_private;
-	int i;
-	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-		if (&evdi->pipe[i].crtc == crtc)
-			break;
-
-	if (i < LINDROID_MAX_CONNECTORS)
-		evdi_pipe_disable(&evdi->pipe[i]);
-}
+#endif
 
 static void evdi_crtc_commit(struct drm_crtc *crtc)
 {
 	struct evdi_device *evdi = crtc->dev->dev_private;
-	int i;
-	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-		if (&evdi->pipe[i].crtc == crtc)
-			break;
+    	int i;
+    	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+    	    if (&evdi->pipe[i].crtc == crtc)
+    	        break;
 
-	if (i < LINDROID_MAX_CONNECTORS)
-		evdi_pipe_update(&evdi->pipe[i], NULL);
+    	if (i < LINDROID_MAX_CONNECTORS)
+    	    evdi_pipe_update(&evdi->pipe[i]
+#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
+			, NULL
+#endif
+	);
+}
+
+static void evdi_crtc_enable(struct drm_crtc *crtc)
+{
+	drm_crtc_vblank_on(crtc);
+}
+
+static void evdi_crtc_disable(struct drm_crtc *crtc)
+{
+	drm_crtc_vblank_off(crtc);
 }
 
 static int evdi_crtc_set_config(struct drm_mode_set *set)
@@ -129,7 +130,7 @@ static const struct drm_crtc_funcs evdi_crtc_funcs = {
 	.reset = NULL,
 	.destroy = drm_crtc_cleanup,
 	.set_config = evdi_crtc_set_config,
-	.page_flip = NULL,
+	.page_flip = evdi_crtc_page_flip,
 };
 
 static const struct drm_plane_funcs evdi_plane_funcs = {
@@ -220,6 +221,8 @@ int evdi_modeset_init(struct drm_device *dev)
 			evdi_err("Failed to attach connector[%d]: %d", i, ret);
 			goto err_pipe;
 		}
+
+		evdi->pipe[i].connector = connector;
 	}
 
 	evdi_info("Modeset initialized for device %d", evdi->dev_index);
