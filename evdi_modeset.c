@@ -159,16 +159,6 @@ int evdi_modeset_init(struct drm_device *dev)
 	drm_mode_config_init(dev);
 #endif
 
-#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
-	dev->vma_offset_manager = kzalloc(sizeof(struct drm_vma_offset_manager), GFP_KERNEL);
-	if (!dev->vma_offset_manager) {
-		evdi_err("Failed to allocate VMA offset manager");
-		ret = -ENOMEM;
-		goto err_connector;
-	}
-	drm_vma_offset_manager_init(dev->vma_offset_manager, 0, ~0UL);
-#endif
-
 	dev->mode_config.min_width = 640;
 	dev->mode_config.min_height = 480;
 	dev->mode_config.max_width = 8192;
@@ -231,13 +221,6 @@ int evdi_modeset_init(struct drm_device *dev)
 err_pipe:
 	evdi_connector_cleanup(evdi);
 err_connector:
-#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
-	if (dev->vma_offset_manager) {
-		drm_vma_offset_manager_destroy(dev->vma_offset_manager);
-		kfree(dev->vma_offset_manager);
-		dev->vma_offset_manager = NULL;
-	}
-#endif
 	drm_mode_config_cleanup(dev);
 	return ret;
 }
@@ -252,14 +235,6 @@ void evdi_modeset_cleanup(struct drm_device *dev)
 		drm_crtc_cleanup(&evdi->pipe[i].crtc);
 		drm_plane_cleanup(&evdi->pipe[i].plane);
 	}
-
-#if KERNEL_VERSION(4, 12, 0) > LINUX_VERSION_CODE
-	if (dev->vma_offset_manager) {
-		drm_vma_offset_manager_destroy(dev->vma_offset_manager);
-		kfree(dev->vma_offset_manager);
-		dev->vma_offset_manager = NULL;
-	}
-#endif
 
 	evdi_connector_cleanup(evdi);
 

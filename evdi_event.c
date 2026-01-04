@@ -12,7 +12,6 @@
 #include "evdi_drv.h"
 #include <linux/sched.h>
 #include <linux/prefetch.h>
-#include <linux/jiffies.h>
 #include <linux/uaccess.h>
 
 struct evdi_event_pool global_event_pool = {0};

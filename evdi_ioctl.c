@@ -10,12 +10,9 @@
  */
 
 #include "evdi_drv.h"
-#include "uapi/evdi_drm.h"
 #include <linux/uaccess.h>
-#include <linux/file.h>
 #include <linux/fdtable.h>
 #include <linux/prefetch.h>
-#include <linux/completion.h>
 #include <linux/compat.h>
 #include <linux/errno.h>
 
@@ -24,9 +21,6 @@
 #else
 #include <linux/sched.h>
 #endif
-
-static int evdi_queue_create_event_with_id(struct evdi_device *evdi, struct drm_evdi_gbm_create_buff *params, struct drm_file *owner, int poll_id);
-int evdi_queue_destroy_event(struct evdi_device *evdi, int id, struct drm_file *owner);
 
 struct evdi_gralloc_buf_stack {
 	struct evdi_gralloc_buf_user buf;
@@ -952,25 +946,10 @@ int evdi_queue_swap_event(struct evdi_device *evdi,
 	return 0;
 }
 
-int evdi_queue_add_buf_event(struct evdi_device *evdi, int fd_data, struct drm_file *owner)
-{
-	return evdi_queue_int_event(evdi, add_buf, fd_data, owner);
-}
-
-int evdi_queue_get_buf_event(struct evdi_device *evdi, int id, struct drm_file *owner)
-{
-	return evdi_queue_int_event(evdi, get_buf, id, owner);
-}
 
 int evdi_queue_destroy_event(struct evdi_device *evdi, int id, struct drm_file *owner)
 {
 	return evdi_queue_int_event(evdi, destroy_buf, id, owner);
 }
 
-int evdi_queue_create_event(struct evdi_device *evdi,
-			   struct drm_evdi_gbm_create_buff *params,
-			   struct drm_file *owner)
-{
-	int poll_id = atomic_inc_return(&evdi->events.next_poll_id);
-	return evdi_queue_create_event_with_id(evdi, params, owner, poll_id);
-}
+

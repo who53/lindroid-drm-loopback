@@ -10,12 +10,7 @@
  */
 
 #include "evdi_drv.h"
-#include <linux/platform_device.h>
 #include <linux/of.h>
-
-extern int evdi_event_system_init(void);
-extern void evdi_event_system_cleanup(void);
-extern void evdi_inflight_discard_owner(struct evdi_device *evdi, struct drm_file *owner);
 
 atomic_t evdi_device_count = ATOMIC_INIT(0);
 
@@ -28,7 +23,6 @@ static const struct file_operations evdi_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-	.mmap = evdi_drm_gem_mmap,
 	.llseek = noop_llseek,
 	.poll = drm_poll,
 	.read = drm_read,
@@ -69,14 +63,12 @@ static struct drm_driver evdi_driver = {
 #endif
 			  DRIVER_GEM,
 
-	.dumb_create = evdi_dumb_create,
 #if KERNEL_VERSION(5, 9, 0) <= LINUX_VERSION_CODE
 	.gem_create_object = NULL,
 #endif
 	
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
-	.gem_prime_import_sg_table = evdi_prime_import_sg_table,
 
 	.open = evdi_driver_open,
 	.postclose = evdi_driver_postclose,

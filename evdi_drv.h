@@ -190,19 +190,6 @@ struct evdi_gralloc_data {
 	atomic_t is_kvblock;
 };
 
-struct evdi_gem_object {
-	struct drm_gem_object base;
-	struct page **pages;
-	atomic_t pages_pin_count;
-	struct mutex pages_lock;
-	void *vmapping;
-	bool vmap_is_iomem;
-	bool vmap_is_vmram;
-	struct sg_table *sg;
-};
-
-#define to_evdi_bo(x) container_of(x, struct evdi_gem_object, base)
-
 struct evdi_swap {
 	int id;
 	int display_id;
@@ -278,26 +265,6 @@ void evdi_inflight_req_put(struct evdi_inflight_req *req);
 extern struct evdi_event_pool global_event_pool;
 extern atomic_t evdi_device_count;
 
-static inline void evdi_gem_object_put(struct drm_gem_object *obj)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
-	drm_gem_object_put(obj);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	drm_gem_object_put_unlocked(obj);
-#else
-	drm_gem_object_unreference_unlocked(obj);
-#endif
-}
-
-static inline void evdi_gem_object_get(struct drm_gem_object *obj)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	drm_gem_object_get(obj);
-#else
-	drm_gem_object_reference(obj);
-#endif
-}
-
 /* evdi_lindroid_drv.c */
 int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev);
 void evdi_device_cleanup(struct evdi_device *evdi);
@@ -326,6 +293,8 @@ int evdi_queue_swap_event(struct evdi_device *evdi, int id, int display_id, stru
 int evdi_queue_destroy_event(struct evdi_device *evdi, int id, struct drm_file *owner);
 
 /* evdi_event.c */
+int evdi_event_system_init(void);
+void evdi_event_system_cleanup(void);
 int evdi_event_init(struct evdi_device *evdi);
 void evdi_event_cleanup(struct evdi_device *evdi);
 struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
@@ -340,31 +309,9 @@ void evdi_event_queue(struct evdi_device *evdi, struct evdi_event *event);
 struct evdi_event *evdi_event_dequeue(struct evdi_device *evdi);
 void evdi_event_cleanup_file(struct evdi_device *evdi, struct drm_file *file);
 int evdi_event_wait(struct evdi_device *evdi, struct drm_file *file);
-struct evdi_inflight_req;
 struct evdi_inflight_req *evdi_inflight_req_alloc(struct evdi_device *evdi);
 void *evdi_small_payload_alloc(gfp_t gfp);
 void evdi_small_payload_free(void *ptr);
-
-/* evdi_gem.c */
-struct evdi_gem_object *evdi_gem_alloc_object(struct drm_device *dev, size_t size);
-int evdi_gem_create(struct drm_file *file, struct drm_device *dev, uint64_t size, uint32_t *handle_p);
-int evdi_dumb_create(struct drm_file *file, struct drm_device *dev, struct drm_mode_create_dumb *args);
-int evdi_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
-void evdi_gem_free_object(struct drm_gem_object *gem_obj);
-uint32_t evdi_gem_object_handle_lookup(struct drm_file *filp, struct drm_gem_object *obj);
-struct sg_table *evdi_prime_get_sg_table(struct drm_gem_object *obj);
-struct drm_gem_object *evdi_prime_import_sg_table(struct drm_device *dev,
-						  struct dma_buf_attachment *attach,
-						  struct sg_table *sg);
-int evdi_gem_vmap(struct evdi_gem_object *obj);
-void evdi_gem_vunmap(struct evdi_gem_object *obj);
-#if KERNEL_VERSION(4, 17, 0) <= LINUX_VERSION_CODE
-vm_fault_t evdi_gem_fault(struct vm_fault *vmf);
-#elif KERNEL_VERSION(4, 11, 0) <= LINUX_VERSION_CODE
-int evdi_gem_fault(struct vm_fault *vmf);
-#else
-int evdi_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
-#endif
 
 /* evdi_sysfs.c */
 int evdi_sysfs_init(void);
@@ -380,7 +327,6 @@ struct drm_framebuffer *evdi_fb_user_fb_create(
 
 struct evdi_framebuffer {
 	struct drm_framebuffer base;
-	struct evdi_gem_object *obj;
 	bool active;
 	int gralloc_buf_id;
 	struct drm_file *owner;

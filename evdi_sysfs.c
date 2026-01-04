@@ -10,10 +10,8 @@
  */
 
 #include "evdi_drv.h"
-#include <linux/device.h>
 #include <linux/sysfs.h>
 #include <linux/stat.h>
-#include <linux/platform_device.h>
 #include <linux/idr.h>
 
 extern bool evdi_perf_on;
