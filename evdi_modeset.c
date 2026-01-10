@@ -118,6 +118,22 @@ static int evdi_crtc_set_config(struct drm_mode_set *set)
 	return 0;
 }
 
+static int evdi_cursor_set2(struct drm_crtc *crtc,
+                            struct drm_file *file,
+                            uint32_t handle,
+                            uint32_t width,
+                            uint32_t height,
+                            int32_t hot_x,
+                            int32_t hot_y)
+{
+    return 0;
+}
+
+static int evdi_cursor_move(struct drm_crtc *crtc, int x, int y)
+{
+    return 0;
+}
+
 static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
 	.mode_set = NULL,
 	.dpms = NULL,
@@ -131,6 +147,8 @@ static const struct drm_crtc_funcs evdi_crtc_funcs = {
 	.destroy = drm_crtc_cleanup,
 	.set_config = evdi_crtc_set_config,
 	.page_flip = evdi_crtc_page_flip,
+	.cursor_set2 = evdi_cursor_set2,
+	.cursor_move = evdi_cursor_move,
 };
 
 static const struct drm_plane_funcs evdi_plane_funcs = {
