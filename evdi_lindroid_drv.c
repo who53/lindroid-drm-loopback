@@ -16,6 +16,9 @@ atomic_t evdi_device_count = ATOMIC_INIT(0);
 
 static int evdi_driver_open(struct drm_device *dev, struct drm_file *file);
 static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file);
+static int evdi_prime_fd_to_handle(struct drm_device *dev,
+                   struct drm_file *file_priv,
+                   int prime_fd, uint32_t *handle);
 
 #if EVDI_HAVE_DRM_OPEN_CLOSE
 static const struct file_operations evdi_fops = {
@@ -68,7 +71,7 @@ static struct drm_driver evdi_driver = {
 #endif
 	
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
-	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
+	.prime_fd_to_handle = evdi_prime_fd_to_handle,
 
 	.open = evdi_driver_open,
 	.postclose = evdi_driver_postclose,
@@ -95,6 +98,17 @@ static struct drm_driver evdi_driver = {
 		| DRIVER_ATOMIC
 #endif
 };
+
+static int evdi_prime_fd_to_handle(struct drm_device *dev,
+                   struct drm_file *file_priv,
+                   int prime_fd, uint32_t *handle)
+{
+    if (!handle)
+        return -EINVAL;
+
+    *handle = (uint32_t)prime_fd;
+    return 0;
+}
 
 static int evdi_driver_open(struct drm_device *dev, struct drm_file *file)
 {
