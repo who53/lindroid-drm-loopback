@@ -14,16 +14,7 @@
 
 static void evdi_fb_destroy(struct drm_framebuffer *fb)
 {
-	struct evdi_framebuffer *efb = to_evdi_fb(fb);
-	struct evdi_device *evdi = fb->dev ? fb->dev->dev_private : NULL;
-
 	drm_framebuffer_cleanup(fb);
-
-	if (evdi && efb->gralloc_buf_id) {
-		evdi_queue_destroy_event(evdi, efb->gralloc_buf_id, efb->owner);
-	} 
-
-	kfree(efb);
 }
 
 const struct drm_framebuffer_funcs evdifb_funcs = {
