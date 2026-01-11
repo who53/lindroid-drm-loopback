@@ -112,12 +112,24 @@ static int evdi_prime_fd_to_handle(struct drm_device *dev,
 
 static int evdi_driver_open(struct drm_device *dev, struct drm_file *file)
 {
+	struct evdi_file_priv *priv;
+
+	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
+
+	INIT_LIST_HEAD(&priv->buffers);
+	spin_lock_init(&priv->lock);
+	file->driver_priv = priv;
+
 	return 0;
 }
 
 static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 {
 	struct evdi_device *evdi = dev->dev_private;
+	struct evdi_file_priv *priv = file->driver_priv;
+	struct evdi_buffer_entry *entry, *tmp;
 
 	if (unlikely(!evdi))
 		return;
@@ -131,6 +143,20 @@ static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 	evdi_smp_mb();
 
 	evdi_event_cleanup_file(evdi, file);
+
+	if (priv) {
+		spin_lock(&priv->lock);
+		list_for_each_entry_safe(entry, tmp, &priv->buffers, node) {
+			if (file != evdi->drm_client && evdi->drm_client) {
+				evdi_queue_destroy_event(evdi, entry->id, evdi->drm_client);
+			}
+			list_del(&entry->node);
+			kfree(entry);
+		}
+		spin_unlock(&priv->lock);
+		kfree(priv);
+		file->driver_priv = NULL;
+	}
 
 	evdi_debug("Device %d closed by process %d", evdi->dev_index, current->pid);
 }

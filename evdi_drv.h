@@ -202,6 +202,16 @@ struct evdi_display {
 	uint32_t refresh_rate;
 };
 
+struct evdi_buffer_entry {
+	struct list_head node;
+	int id;
+};
+
+struct evdi_file_priv {
+	struct list_head buffers;
+	spinlock_t lock;
+};
+
 struct evdi_device {
 	struct drm_device *ddev;
 	struct drm_connector *connector[LINDROID_MAX_CONNECTORS];

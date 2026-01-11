@@ -725,6 +725,22 @@ int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data, struct drm_fi
 			evdi_inflight_req_put(req);
 			return -EFAULT;
 		}
+
+		/* Track the buffer for cleanup on close */
+		if (file->driver_priv) {
+			struct evdi_file_priv *priv = file->driver_priv;
+			struct evdi_buffer_entry *entry = kmalloc(sizeof(*entry), GFP_KERNEL);
+
+			if (entry) {
+				entry->id = req->reply.create.id;
+				spin_lock(&priv->lock);
+				list_add(&entry->node, &priv->buffers);
+				spin_unlock(&priv->lock);
+			} else {
+				evdi_warn("Failed to allocate tracking entry for buffer %d",
+					  req->reply.create.id);
+			}
+		}
 	}
 	if (u_stride) {
 		if (evdi_copy_to_user_allow_partial(u_stride, &req->reply.create.stride, sizeof(*u_stride))) {
