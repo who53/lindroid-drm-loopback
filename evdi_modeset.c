@@ -12,10 +12,10 @@
 #include "evdi_drv.h"
 
 static const struct drm_mode_config_funcs evdi_mode_config_funcs = {
-	.fb_create	= evdi_fb_user_fb_create,
+	.fb_create = evdi_fb_user_fb_create,
 #if EVDI_HAVE_ATOMIC_HELPERS
-	.atomic_check	= drm_atomic_helper_check,
-	.atomic_commit	= drm_atomic_helper_commit,
+	.atomic_check = drm_atomic_helper_check,
+	.atomic_commit = drm_atomic_helper_commit,
 #endif
 };
 
@@ -27,58 +27,57 @@ static const uint32_t evdi_formats[] = {
 static void evdi_do_pipe_update(struct drm_simple_display_pipe *pipe)
 {
 	struct drm_framebuffer *fb = pipe->plane.fb;
-    	struct evdi_device *evdi = pipe->plane.dev->dev_private;
-    	struct evdi_framebuffer *efb;
+	struct evdi_device *evdi = pipe->plane.dev->dev_private;
+	struct evdi_framebuffer *efb;
 
-    	if (!fb)
-    	    return;
+	if (!fb)
+		return;
 
-    	efb = to_evdi_fb(fb);
-    	if (efb && efb->owner && efb->gralloc_buf_id)
-    	    evdi_queue_swap_event(evdi,
-    	                  efb->gralloc_buf_id,
-    	                  evdi_connector_slot(evdi, pipe->connector),
-    	                  efb->owner);
+	efb = to_evdi_fb(fb);
+	if (efb && efb->owner && efb->gralloc_buf_id)
+		evdi_queue_swap_event(
+			evdi, efb->gralloc_buf_id,
+			evdi_connector_slot(evdi, pipe->connector), efb->owner);
 }
 
 static int evdi_crtc_page_flip(struct drm_crtc *crtc,
-                   struct drm_framebuffer *fb,
-                   struct drm_pending_vblank_event *event,
-                   uint32_t flags)
+			       struct drm_framebuffer *fb,
+			       struct drm_pending_vblank_event *event,
+			       uint32_t flags)
 {
 	struct evdi_device *evdi = crtc->dev->dev_private;
-    	struct drm_plane *plane = crtc->primary;
-    	int i;
+	struct drm_plane *plane = crtc->primary;
+	int i;
 
-    	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-    	    if (&evdi->pipe[i].crtc == crtc)
-    	        break;
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
 
-    	if (i >= LINDROID_MAX_CONNECTORS)
-    	    return -ENODEV;
+	if (i >= LINDROID_MAX_CONNECTORS)
+		return -ENODEV;
 
-    	plane->fb = fb;
+	plane->fb = fb;
 
-    	evdi_do_pipe_update(&evdi->pipe[i]);
+	evdi_do_pipe_update(&evdi->pipe[i]);
 
-    	if (event) {
-    	    unsigned long flags;
-    	    spin_lock_irqsave(&crtc->dev->event_lock, flags);
-    	    drm_crtc_send_vblank_event(crtc, event);
-    	    spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
-    	}
+	if (event) {
+		unsigned long flags;
+		spin_lock_irqsave(&crtc->dev->event_lock, flags);
+		drm_crtc_send_vblank_event(crtc, event);
+		spin_unlock_irqrestore(&crtc->dev->event_lock, flags);
+	}
 
-    	return 0;
+	return 0;
 }
 
 #if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
 static void evdi_pipe_update(struct drm_simple_display_pipe *pipe,
-                 struct drm_plane_state *old_state)
+			     struct drm_plane_state *old_state)
 {
 	struct drm_plane_state *state = pipe->plane.state;
-    	if (state && old_state && old_state->fb == state->fb)
-    	    return;
-    	evdi_do_pipe_update(pipe);
+	if (state && old_state && old_state->fb == state->fb)
+		return;
+	evdi_do_pipe_update(pipe);
 }
 #else
 static void evdi_pipe_update(struct drm_simple_display_pipe *pipe)
@@ -90,17 +89,18 @@ static void evdi_pipe_update(struct drm_simple_display_pipe *pipe)
 static void evdi_crtc_commit(struct drm_crtc *crtc)
 {
 	struct evdi_device *evdi = crtc->dev->dev_private;
-    	int i;
-    	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-    	    if (&evdi->pipe[i].crtc == crtc)
-    	        break;
+	int i;
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
 
-    	if (i < LINDROID_MAX_CONNECTORS)
-    	    evdi_pipe_update(&evdi->pipe[i]
+	if (i < LINDROID_MAX_CONNECTORS)
+		evdi_pipe_update(&evdi->pipe[i]
 #if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
-			, NULL
+				 ,
+				 NULL
 #endif
-	);
+		);
 }
 
 static void evdi_crtc_enable(struct drm_crtc *crtc)
@@ -118,20 +118,16 @@ static int evdi_crtc_set_config(struct drm_mode_set *set)
 	return 0;
 }
 
-static int evdi_cursor_set2(struct drm_crtc *crtc,
-                            struct drm_file *file,
-                            uint32_t handle,
-                            uint32_t width,
-                            uint32_t height,
-                            int32_t hot_x,
-                            int32_t hot_y)
+static int evdi_cursor_set2(struct drm_crtc *crtc, struct drm_file *file,
+			    uint32_t handle, uint32_t width, uint32_t height,
+			    int32_t hot_x, int32_t hot_y)
 {
-    return 0;
+	return 0;
 }
 
 static int evdi_cursor_move(struct drm_crtc *crtc, int x, int y)
 {
-    return 0;
+	return 0;
 }
 
 static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
@@ -199,10 +195,10 @@ int evdi_modeset_init(struct drm_device *dev)
 		struct drm_encoder *encoder = &evdi->pipe[i].encoder;
 		struct drm_connector *connector = evdi->connector[i];
 
-		ret = drm_universal_plane_init(dev, plane, 0,
-									   &evdi_plane_funcs,
-									   evdi_formats, ARRAY_SIZE(evdi_formats),
-									   DRM_PLANE_TYPE_PRIMARY, NULL);
+		ret = drm_universal_plane_init(dev, plane, 0, &evdi_plane_funcs,
+					       evdi_formats,
+					       ARRAY_SIZE(evdi_formats),
+					       DRM_PLANE_TYPE_PRIMARY, NULL);
 		if (ret) {
 			evdi_err("Failed to initialize plane[%d]: %d", i, ret);
 			goto err_pipe;
@@ -210,7 +206,7 @@ int evdi_modeset_init(struct drm_device *dev)
 
 		drm_crtc_helper_add(crtc, &evdi_crtc_helper_funcs);
 		ret = drm_crtc_init_with_planes(dev, crtc, plane, NULL,
-										&evdi_crtc_funcs, NULL);
+						&evdi_crtc_funcs, NULL);
 		if (ret) {
 			evdi_err("Failed to initialize crtc[%d]: %d", i, ret);
 			goto err_pipe;
@@ -218,9 +214,10 @@ int evdi_modeset_init(struct drm_device *dev)
 
 		encoder->possible_crtcs = 1 << drm_crtc_index(crtc);
 		ret = drm_encoder_init(dev, encoder, &evdi_encoder_funcs,
-							   DRM_MODE_ENCODER_NONE, NULL);
+				       DRM_MODE_ENCODER_NONE, NULL);
 		if (ret) {
-			evdi_err("Failed to initialize encoder[%d]: %d", i, ret);
+			evdi_err("Failed to initialize encoder[%d]: %d", i,
+				 ret);
 			goto err_pipe;
 		}
 

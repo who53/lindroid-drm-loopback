@@ -18,7 +18,7 @@ static void evdi_fb_destroy(struct drm_framebuffer *fb)
 }
 
 const struct drm_framebuffer_funcs evdifb_funcs = {
-	.destroy	= evdi_fb_destroy,
+	.destroy = evdi_fb_destroy,
 };
 
 static int evdi_fb_extract_gralloc_id(const struct drm_mode_fb_cmd2 *mode_cmd)
@@ -53,17 +53,19 @@ static int evdi_fb_init_core(struct drm_device *dev,
 	int ret;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-	const struct drm_format_info *info = drm_format_info(mode_cmd->pixel_format);
+	const struct drm_format_info *info =
+		drm_format_info(mode_cmd->pixel_format);
 	if (!info)
 		return -EINVAL;
 #endif
 
 	fb->dev = dev;
-	fb->width  = mode_cmd->width;
+	fb->width = mode_cmd->width;
 	fb->height = mode_cmd->height;
-	fb->pitches[0] = mode_cmd->pitches[0] ?
-		mode_cmd->pitches[0] :
-		evdi_fb_cpp(mode_cmd->pixel_format) * mode_cmd->width;
+	fb->pitches[0] =
+		mode_cmd->pitches[0] ?
+			mode_cmd->pitches[0] :
+			evdi_fb_cpp(mode_cmd->pixel_format) * mode_cmd->width;
 	fb->offsets[0] = mode_cmd->offsets[0];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -74,7 +76,8 @@ static int evdi_fb_init_core(struct drm_device *dev,
 	fb->depth = 0;
 #endif
 
-#if defined(DRM_FORMAT_MOD_LINEAR) || (LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0))
+#if defined(DRM_FORMAT_MOD_LINEAR) || \
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0))
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 	fb->modifier = mode_cmd->modifier[0];
 #else
@@ -89,9 +92,9 @@ static int evdi_fb_init_core(struct drm_device *dev,
 	return ret;
 }
 
-struct drm_framebuffer *evdi_fb_user_fb_create(struct drm_device *dev,
-					       struct drm_file *file,
-					       const struct drm_mode_fb_cmd2 *mode_cmd)
+struct drm_framebuffer *
+evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
+		       const struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct evdi_framebuffer *efb;
 	int ret, id = 0;
@@ -111,7 +114,8 @@ struct drm_framebuffer *evdi_fb_user_fb_create(struct drm_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 		bytes_read = kernel_read(memfd_file, &id, sizeof(id), &pos);
 #else
-		bytes_read = kernel_read(memfd_file, pos, (char *)&id, (unsigned long)sizeof(id));
+		bytes_read = kernel_read(memfd_file, pos, (char *)&id,
+					 (unsigned long)sizeof(id));
 #endif
 		if (bytes_read == sizeof(id))
 			efb->gralloc_buf_id = id;

@@ -15,10 +15,11 @@
 atomic_t evdi_device_count = ATOMIC_INIT(0);
 
 static int evdi_driver_open(struct drm_device *dev, struct drm_file *file);
-static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file);
+static void evdi_driver_postclose(struct drm_device *dev,
+				  struct drm_file *file);
 static int evdi_prime_fd_to_handle(struct drm_device *dev,
-                   struct drm_file *file_priv,
-                   int prime_fd, uint32_t *handle);
+				   struct drm_file *file_priv, int prime_fd,
+				   uint32_t *handle);
 
 #if EVDI_HAVE_DRM_OPEN_CLOSE
 static const struct file_operations evdi_fops = {
@@ -38,38 +39,35 @@ static const struct file_operations evdi_fops = {
 #define EVDI_IOCTL_FLAGS (DRM_UNLOCKED | DRM_RENDER_ALLOW)
 
 static const struct drm_ioctl_desc evdi_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(EVDI_CONNECT, evdi_ioctl_connect,
-			 EVDI_IOCTL_FLAGS),
-	DRM_IOCTL_DEF_DRV(EVDI_POLL, evdi_ioctl_poll,
-			 EVDI_IOCTL_FLAGS),
+	DRM_IOCTL_DEF_DRV(EVDI_CONNECT, evdi_ioctl_connect, EVDI_IOCTL_FLAGS),
+	DRM_IOCTL_DEF_DRV(EVDI_POLL, evdi_ioctl_poll, EVDI_IOCTL_FLAGS),
 	DRM_IOCTL_DEF_DRV(EVDI_GBM_CREATE_BUFF, evdi_ioctl_gbm_create_buff,
-			 EVDI_IOCTL_FLAGS),
+			  EVDI_IOCTL_FLAGS),
 	DRM_IOCTL_DEF_DRV(EVDI_GBM_GET_BUFF, evdi_ioctl_gbm_get_buff,
-			 EVDI_IOCTL_FLAGS),
+			  EVDI_IOCTL_FLAGS),
 	DRM_IOCTL_DEF_DRV(EVDI_GET_BUFF_CALLBACK, evdi_ioctl_get_buff_callback,
-			 EVDI_IOCTL_FLAGS),
-	DRM_IOCTL_DEF_DRV(EVDI_DESTROY_BUFF_CALLBACK, evdi_ioctl_destroy_buff_callback,
-			 EVDI_IOCTL_FLAGS),
+			  EVDI_IOCTL_FLAGS),
+	DRM_IOCTL_DEF_DRV(EVDI_DESTROY_BUFF_CALLBACK,
+			  evdi_ioctl_destroy_buff_callback, EVDI_IOCTL_FLAGS),
 	DRM_IOCTL_DEF_DRV(EVDI_SWAP_CALLBACK, evdi_ioctl_swap_callback,
-			 EVDI_IOCTL_FLAGS),
-	DRM_IOCTL_DEF_DRV(EVDI_GBM_CREATE_BUFF_CALLBACK, evdi_ioctl_create_buff_callback,
-			 EVDI_IOCTL_FLAGS),
+			  EVDI_IOCTL_FLAGS),
+	DRM_IOCTL_DEF_DRV(EVDI_GBM_CREATE_BUFF_CALLBACK,
+			  evdi_ioctl_create_buff_callback, EVDI_IOCTL_FLAGS),
 	DRM_IOCTL_DEF_DRV(EVDI_GBM_DEL_BUFF, evdi_ioctl_gbm_del_buff,
-			 EVDI_IOCTL_FLAGS),
+			  EVDI_IOCTL_FLAGS),
 };
 
 static struct drm_driver evdi_driver = {
-	.driver_features = DRIVER_MODESET |
-			  DRIVER_RENDER |
+	.driver_features = DRIVER_MODESET | DRIVER_RENDER |
 #if EVDI_HAVE_ATOMIC_HELPERS
-			  DRIVER_ATOMIC |
+			   DRIVER_ATOMIC |
 #endif
-			  DRIVER_GEM,
+			   DRIVER_GEM,
 
 #if KERNEL_VERSION(5, 9, 0) <= LINUX_VERSION_CODE
 	.gem_create_object = NULL,
 #endif
-	
+
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = evdi_prime_fd_to_handle,
 
@@ -95,19 +93,19 @@ static struct drm_driver evdi_driver = {
 	.driver_features = DRIVER_MODESET | DRIVER_GEM
 #endif
 #if EVDI_HAVE_ATOMIC_HELPERS
-		| DRIVER_ATOMIC
+			   | DRIVER_ATOMIC
 #endif
 };
 
 static int evdi_prime_fd_to_handle(struct drm_device *dev,
-                   struct drm_file *file_priv,
-                   int prime_fd, uint32_t *handle)
+				   struct drm_file *file_priv, int prime_fd,
+				   uint32_t *handle)
 {
-    if (!handle)
-        return -EINVAL;
+	if (!handle)
+		return -EINVAL;
 
-    *handle = (uint32_t)prime_fd;
-    return 0;
+	*handle = (uint32_t)prime_fd;
+	return 0;
 }
 
 static int evdi_driver_open(struct drm_device *dev, struct drm_file *file)
@@ -148,7 +146,8 @@ static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 		spin_lock(&priv->lock);
 		list_for_each_entry_safe(entry, tmp, &priv->buffers, node) {
 			if (file != evdi->drm_client && evdi->drm_client) {
-				evdi_queue_destroy_event(evdi, entry->id, evdi->drm_client);
+				evdi_queue_destroy_event(evdi, entry->id,
+							 evdi->drm_client);
 			}
 			list_del(&entry->node);
 			kfree(entry);
@@ -158,7 +157,8 @@ static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 		file->driver_priv = NULL;
 	}
 
-	evdi_debug("Device %d closed by process %d", evdi->dev_index, current->pid);
+	evdi_debug("Device %d closed by process %d", evdi->dev_index,
+		   current->pid);
 }
 
 int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev)
@@ -177,7 +177,7 @@ int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev)
 	evdi->drm_client = NULL;
 
 	mutex_init(&evdi->config_mutex);
-	
+
 #ifdef EVDI_HAVE_XARRAY
 	xa_init_flags(&evdi->file_xa, XA_FLAGS_ALLOC);
 	xa_init_flags(&evdi->inflight_xa, XA_FLAGS_ALLOC);
@@ -379,8 +379,8 @@ static int __init evdi_init(void)
 {
 	int ret;
 
-	evdi_info("Loading EVDI-Lindroid driver v%d.%d.%d",
-		 DRIVER_MAJOR, DRIVER_MINOR, DRIVER_PATCHLEVEL);
+	evdi_info("Loading EVDI-Lindroid driver v%d.%d.%d", DRIVER_MAJOR,
+		  DRIVER_MINOR, DRIVER_PATCHLEVEL);
 
 	ret = evdi_event_system_init();
 	if (ret) {
@@ -392,7 +392,7 @@ static int __init evdi_init(void)
 	if (ret) {
 		evdi_err("Failed to register platform driver: %d", ret);
 		evdi_event_system_cleanup();
-	return ret;
+		return ret;
 	}
 
 	ret = evdi_sysfs_init();

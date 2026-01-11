@@ -100,15 +100,15 @@
 
 #define DRIVER_NAME "evdi-lindroid"
 #define DRIVER_DESC "Lindroid Virtual Display Interface"
-#define DRIVER_DATE   "NEVER"
+#define DRIVER_DATE "NEVER"
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 0
 #define DRIVER_PATCHLEVEL 0
 
-#define EVDI_WAIT_TIMEOUT	msecs_to_jiffies(5000)
+#define EVDI_WAIT_TIMEOUT msecs_to_jiffies(5000)
 
-#define EVDI_MAX_FDS   16
-#define EVDI_MAX_INTS  64
+#define EVDI_MAX_FDS 16
+#define EVDI_MAX_INTS 64
 #define EVDI_GRALLOC_POOL_MIN 32
 #define EVDI_INFLIGHT_POOL_MIN 64
 #define EVDI_GRALLOC_DATA_POOL_MIN 32
@@ -231,8 +231,8 @@ struct evdi_device {
 	struct {
 		spinlock_t lock;
 		atomic_t cleanup_in_progress;
-		struct evdi_event * volatile head;
-		struct evdi_event * volatile tail;
+		struct evdi_event *volatile head;
+		struct evdi_event *volatile tail;
 		struct llist_head lockfree_head;
 		wait_queue_head_t wait_queue;
 		struct evdi_event_pool pool;
@@ -260,12 +260,12 @@ struct evdi_device {
 	struct idr inflight_idr;
 	spinlock_t inflight_lock;
 #endif
-	struct evdi_percpu_inflight __percpu	*percpu_inflight;
+	struct evdi_percpu_inflight __percpu *percpu_inflight;
 };
 
 struct evdi_percpu_inflight {
-	struct evdi_inflight_req	req[2];
-	atomic_t			in_use[2];
+	struct evdi_inflight_req req[2];
+	atomic_t in_use[2];
 };
 
 struct evdi_inflight_req;
@@ -288,19 +288,31 @@ int evdi_connector_init(struct drm_device *dev, struct evdi_device *evdi);
 void evdi_connector_cleanup(struct evdi_device *evdi);
 
 /* evdi_ioctl.c */
-int evdi_ioctl_connect(struct drm_device *dev, void *data, struct drm_file *file);
+int evdi_ioctl_connect(struct drm_device *dev, void *data,
+		       struct drm_file *file);
 int evdi_ioctl_poll(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_get_buff_callback(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_destroy_buff_callback(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_swap_callback(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_create_buff_callback(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data, struct drm_file *file);
-void evdi_inflight_discard_owner(struct evdi_device *evdi, struct drm_file *owner);
-int evdi_ioctl_request_update(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_gbm_get_buff(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_ioctl_gbm_del_buff(struct drm_device *dev, void *data, struct drm_file *file);
-int evdi_queue_swap_event(struct evdi_device *evdi, int id, int display_id, struct drm_file *owner);
-int evdi_queue_destroy_event(struct evdi_device *evdi, int id, struct drm_file *owner);
+int evdi_ioctl_get_buff_callback(struct drm_device *dev, void *data,
+				 struct drm_file *file);
+int evdi_ioctl_destroy_buff_callback(struct drm_device *dev, void *data,
+				     struct drm_file *file);
+int evdi_ioctl_swap_callback(struct drm_device *dev, void *data,
+			     struct drm_file *file);
+int evdi_ioctl_create_buff_callback(struct drm_device *dev, void *data,
+				    struct drm_file *file);
+int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data,
+			       struct drm_file *file);
+void evdi_inflight_discard_owner(struct evdi_device *evdi,
+				 struct drm_file *owner);
+int evdi_ioctl_request_update(struct drm_device *dev, void *data,
+			      struct drm_file *file);
+int evdi_ioctl_gbm_get_buff(struct drm_device *dev, void *data,
+			    struct drm_file *file);
+int evdi_ioctl_gbm_del_buff(struct drm_device *dev, void *data,
+			    struct drm_file *file);
+int evdi_queue_swap_event(struct evdi_device *evdi, int id, int display_id,
+			  struct drm_file *owner);
+int evdi_queue_destroy_event(struct evdi_device *evdi, int id,
+			     struct drm_file *owner);
 
 /* evdi_event.c */
 int evdi_event_system_init(void);
@@ -308,12 +320,9 @@ void evdi_event_system_cleanup(void);
 int evdi_event_init(struct evdi_device *evdi);
 void evdi_event_cleanup(struct evdi_device *evdi);
 struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
-				   enum poll_event_type type,
-				   int poll_id,
-				   void *data,
-				   size_t data_size,
-				   bool async,
-				   struct drm_file *owner);
+				    enum poll_event_type type, int poll_id,
+				    void *data, size_t data_size, bool async,
+				    struct drm_file *owner);
 void evdi_event_free(struct evdi_event *event);
 void evdi_event_queue(struct evdi_device *evdi, struct evdi_event *event);
 struct evdi_event *evdi_event_dequeue(struct evdi_device *evdi);
@@ -328,10 +337,9 @@ int evdi_sysfs_init(void);
 void evdi_sysfs_cleanup(void);
 
 /* evdi_fb.c */
-struct drm_framebuffer *evdi_fb_user_fb_create(
-					struct drm_device *dev,
-					struct drm_file *file,
-					const struct drm_mode_fb_cmd2 *mode_cmd);
+struct drm_framebuffer *
+evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
+		       const struct drm_mode_fb_cmd2 *mode_cmd);
 
 #define to_evdi_fb(x) container_of(x, struct evdi_framebuffer, base)
 
@@ -347,7 +355,8 @@ int evdi_connector_slot(const struct evdi_device *evdi,
 			const struct drm_connector *conn);
 
 /* Helpers */
-static __always_inline bool evdi_likely_connected(struct evdi_device *evdi, int id)
+static __always_inline bool evdi_likely_connected(struct evdi_device *evdi,
+						  int id)
 {
 	return likely(id >= 0 && id < LINDROID_MAX_CONNECTORS &&
 		      READ_ONCE(evdi->displays[id].connected));
@@ -400,24 +409,31 @@ static __always_inline void evdi_smp_mb(void)
 #define evdi_debug(fmt, ...) \
 	pr_debug("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
 #else
-#define evdi_debug(fmt, ...) do { } while (0)
+#define evdi_debug(fmt, ...) \
+	do {                 \
+	} while (0)
 #endif
 
-#define evdi_info(fmt, ...) \
-	pr_info("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
+#define evdi_info(fmt, ...) pr_info("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
 
-#define evdi_warn(fmt, ...) \
-	pr_warn("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
+#define evdi_warn(fmt, ...) pr_warn("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
 
-#define evdi_err(fmt, ...) \
-	pr_err("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
+#define evdi_err(fmt, ...) pr_err("[evdi-lindroid] " fmt "\n", ##__VA_ARGS__)
 
 /* Performance counters for monitoring */
 DECLARE_STATIC_KEY_FALSE(evdi_perf_key);
 extern bool evdi_perf_on;
 #define EVDI_PERF_ENABLED() static_branch_unlikely(&evdi_perf_key)
-#define EVDI_PERF_INC64(p)	do { if (EVDI_PERF_ENABLED()) atomic64_inc((p)); } while (0)
-#define EVDI_PERF_ADD64(p,v)	do { if (EVDI_PERF_ENABLED()) atomic64_add((v),(p)); } while (0)
+#define EVDI_PERF_INC64(p)                 \
+	do {                               \
+		if (EVDI_PERF_ENABLED())   \
+			atomic64_inc((p)); \
+	} while (0)
+#define EVDI_PERF_ADD64(p, v)                   \
+	do {                                    \
+		if (EVDI_PERF_ENABLED())        \
+			atomic64_add((v), (p)); \
+	} while (0)
 
 struct evdi_perf_counters {
 	atomic64_t ioctl_calls[16];

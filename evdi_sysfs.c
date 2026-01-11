@@ -20,13 +20,14 @@ extern struct static_key_false evdi_perf_key;
 static struct device *evdi_sysfs_dev;
 static DEFINE_IDA(evdi_pdev_ida);
 
-static ssize_t add_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t add_show(struct device *dev, struct device_attribute *attr,
+			char *buf)
 {
 	return sprintf(buf, "%d\n", atomic_read(&evdi_device_count));
 }
 
 static ssize_t add_store(struct device *dev, struct device_attribute *attr,
-			const char *buf, size_t count)
+			 const char *buf, size_t count)
 {
 	struct platform_device *pdev;
 	struct device *parent = evdi_sysfs_dev;
@@ -78,7 +79,7 @@ static ssize_t add_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	evdi_info("Created new device via sysfs (total: %d)",
-		 atomic_read(&evdi_device_count));
+		  atomic_read(&evdi_device_count));
 
 	return count;
 }
@@ -93,13 +94,15 @@ static struct device_attribute dev_attr_add_0666 = {
 	.store = add_store,
 };
 
-static ssize_t enable_perf_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t enable_perf_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", evdi_perf_on ? 1 : 0);
 }
 
-static ssize_t enable_perf_store(struct device *dev, struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t enable_perf_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
 {
 	int val, ret;
 
@@ -131,57 +134,59 @@ static const struct attribute_group evdi_sysfs_attr_group = {
 	.attrs = evdi_sysfs_attrs,
 };
 
-static ssize_t stats_show(struct device *dev, struct device_attribute *attr, char *buf)
+static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
+			  char *buf)
 {
-	return sprintf(buf,
-	"EVDI-Lindroid Performance Statistics\n"
-	"=====================================\n"
-	"IOCTL calls:\n"
-	"  CONNECT: %lld\n"
-	"  POLL: %lld\n"
-	"  GET_BUFF_CALLBACK: %lld\n"
-	"  DESTROY_BUFF_CALLBACK: %lld\n"
-	"  SWAP_CALLBACK: %lld\n"
-	"  CREATE_BUFF_CALLBACK: %lld\n"
-	"  EVDI_GBM_GET_BUFF: %lld\n"
-	"\n"
-	"Event system:\n"
-	"  Queue operations: %lld\n"
-	"  Dequeue operations: %lld\n"
-	"  Fast pool allocs: %lld\n"
-	"  Slow path allocs: %lld\n"
-	"  Event per-CPU allocs: %lld\n"
-	"  Event heap allocs: %lld\n"
-	"  Event no allocs: %lld\n"
-	"  Event freelist hits: %lld\n"
-	"  Event freelist misses: %lld\n"
-	"  Event freelist pushes: %lld\n"
-	"  Wakeups: %lld\n"
-	"  Poll cycles: %lld\n"
-	"  Inflight per-CPU hits: %lld\n"
-	"  Inflight per-CPU misses: %lld\n"
-	"=====================================\n",
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[0]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[1]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[3]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[4]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[5]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[6]),
-	(long long)atomic64_read(&evdi_perf.ioctl_calls[7]),
-	(long long)atomic64_read(&evdi_perf.event_queue_ops),
-	(long long)atomic64_read(&evdi_perf.event_dequeue_ops),
-	(long long)atomic64_read(&evdi_perf.pool_alloc_fast),
-	(long long)atomic64_read(&evdi_perf.pool_alloc_slow),
-	(long long)atomic64_read(&evdi_perf.event_payload_small_allocs),
-	(long long)atomic64_read(&evdi_perf.event_payload_heap_allocs),
-	(long long)atomic64_read(&evdi_perf.event_payload_none_allocs),
-	(long long)atomic64_read(&evdi_perf.event_freelist_pop_hits),
-	(long long)atomic64_read(&evdi_perf.event_freelist_pop_misses),
-	(long long)atomic64_read(&evdi_perf.event_freelist_pushes),
-	(long long)atomic64_read(&evdi_perf.wakeup_count),
-	(long long)atomic64_read(&evdi_perf.poll_cycles),
-	(long long)atomic64_read(&evdi_perf.inflight_percpu_hits),
-	(long long)atomic64_read(&evdi_perf.inflight_percpu_misses));
+	return sprintf(
+		buf,
+		"EVDI-Lindroid Performance Statistics\n"
+		"=====================================\n"
+		"IOCTL calls:\n"
+		"  CONNECT: %lld\n"
+		"  POLL: %lld\n"
+		"  GET_BUFF_CALLBACK: %lld\n"
+		"  DESTROY_BUFF_CALLBACK: %lld\n"
+		"  SWAP_CALLBACK: %lld\n"
+		"  CREATE_BUFF_CALLBACK: %lld\n"
+		"  EVDI_GBM_GET_BUFF: %lld\n"
+		"\n"
+		"Event system:\n"
+		"  Queue operations: %lld\n"
+		"  Dequeue operations: %lld\n"
+		"  Fast pool allocs: %lld\n"
+		"  Slow path allocs: %lld\n"
+		"  Event per-CPU allocs: %lld\n"
+		"  Event heap allocs: %lld\n"
+		"  Event no allocs: %lld\n"
+		"  Event freelist hits: %lld\n"
+		"  Event freelist misses: %lld\n"
+		"  Event freelist pushes: %lld\n"
+		"  Wakeups: %lld\n"
+		"  Poll cycles: %lld\n"
+		"  Inflight per-CPU hits: %lld\n"
+		"  Inflight per-CPU misses: %lld\n"
+		"=====================================\n",
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[0]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[1]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[3]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[4]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[5]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[6]),
+		(long long)atomic64_read(&evdi_perf.ioctl_calls[7]),
+		(long long)atomic64_read(&evdi_perf.event_queue_ops),
+		(long long)atomic64_read(&evdi_perf.event_dequeue_ops),
+		(long long)atomic64_read(&evdi_perf.pool_alloc_fast),
+		(long long)atomic64_read(&evdi_perf.pool_alloc_slow),
+		(long long)atomic64_read(&evdi_perf.event_payload_small_allocs),
+		(long long)atomic64_read(&evdi_perf.event_payload_heap_allocs),
+		(long long)atomic64_read(&evdi_perf.event_payload_none_allocs),
+		(long long)atomic64_read(&evdi_perf.event_freelist_pop_hits),
+		(long long)atomic64_read(&evdi_perf.event_freelist_pop_misses),
+		(long long)atomic64_read(&evdi_perf.event_freelist_pushes),
+		(long long)atomic64_read(&evdi_perf.wakeup_count),
+		(long long)atomic64_read(&evdi_perf.poll_cycles),
+		(long long)atomic64_read(&evdi_perf.inflight_percpu_hits),
+		(long long)atomic64_read(&evdi_perf.inflight_percpu_misses));
 }
 
 static DEVICE_ATTR_RO(stats);
@@ -206,7 +211,6 @@ static const struct attribute_group *evdi_attr_groups[] = {
 int evdi_sysfs_init(void)
 {
 	int ret;
-
 
 	evdi_sysfs_dev = root_device_register(DRIVER_NAME);
 	if (IS_ERR(evdi_sysfs_dev)) {
