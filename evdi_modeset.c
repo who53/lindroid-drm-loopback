@@ -130,6 +130,12 @@ static int evdi_cursor_move(struct drm_crtc *crtc, int x, int y)
 	return 0;
 }
 
+static int evdi_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
+			       uint32_t size)
+{
+	return 0;
+}
+
 static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
 	.mode_set = NULL,
 	.dpms = NULL,
@@ -145,6 +151,7 @@ static const struct drm_crtc_funcs evdi_crtc_funcs = {
 	.page_flip = evdi_crtc_page_flip,
 	.cursor_set2 = evdi_cursor_set2,
 	.cursor_move = evdi_cursor_move,
+	.gamma_set = evdi_crtc_gamma_set,
 };
 
 static const struct drm_plane_funcs evdi_plane_funcs = {
@@ -227,6 +234,7 @@ int evdi_modeset_init(struct drm_device *dev)
 			goto err_pipe;
 		}
 
+		drm_mode_crtc_set_gamma_size(crtc, 256);
 		evdi->pipe[i].connector = connector;
 	}
 
