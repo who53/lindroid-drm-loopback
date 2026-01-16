@@ -1001,3 +1001,22 @@ int evdi_queue_destroy_event(struct evdi_device *evdi, int id,
 {
 	return evdi_queue_int_event(evdi, destroy_buf, id, owner);
 }
+
+int evdi_queue_crtc_state_event(struct evdi_device *evdi, int display_id,
+				int enabled, struct drm_file *owner)
+{
+	struct evdi_event *event;
+	struct drm_evdi_crtc_state data = {
+		.display_id = display_id,
+		.enabled = enabled,
+	};
+
+	event = evdi_event_alloc(evdi, crtc_state,
+				 atomic_inc_return(&evdi->events.next_poll_id),
+				 &data, sizeof(data), owner);
+	if (!event)
+		return -ENOMEM;
+
+	evdi_event_queue(evdi, event);
+	return 0;
+}

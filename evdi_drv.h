@@ -313,6 +313,8 @@ int evdi_queue_swap_event(struct evdi_device *evdi, int id, int display_id,
 			  struct drm_file *owner);
 int evdi_queue_destroy_event(struct evdi_device *evdi, int id,
 			     struct drm_file *owner);
+int evdi_queue_crtc_state_event(struct evdi_device *evdi, int display_id,
+				int enabled, struct drm_file *owner);
 
 /* evdi_event.c */
 int evdi_event_system_init(void);

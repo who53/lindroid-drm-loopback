@@ -38,6 +38,15 @@ struct drm_evdi_connect {
 	uint32_t display_id;
 };
 
+enum poll_event_type {
+	none,
+	get_buf,
+	destroy_buf,
+	swap_to,
+	create_buf,
+	crtc_state
+};
+
 struct drm_evdi_poll {
 	enum poll_event_type event;
 	int poll_id;
@@ -96,6 +105,11 @@ struct drm_evdi_gbm_del_buff {
 #define DRM_EVDI_GBM_DEL_BUFF 0x0B /* Unused by create-disp */
 #define DRM_EVDI_GBM_CREATE_BUFF 0x0C /* Unused by create-disp */
 #define DRM_EVDI_GBM_CREATE_BUFF_CALLBACK 0x0D
+
+struct drm_evdi_crtc_state {
+	int display_id;
+	int enabled;
+};
 
 #define DRM_IOCTL_EVDI_CONNECT \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_EVDI_CONNECT, struct drm_evdi_connect)

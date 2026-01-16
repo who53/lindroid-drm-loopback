@@ -105,16 +105,45 @@ static void evdi_crtc_commit(struct drm_crtc *crtc)
 
 static void evdi_crtc_enable(struct drm_crtc *crtc)
 {
-	drm_crtc_vblank_on(crtc);
+	struct evdi_device *evdi = crtc->dev->dev_private;
+	int i;
+
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
+
+	if (i < LINDROID_MAX_CONNECTORS) {
+		evdi_queue_crtc_state_event(evdi, i, 1, evdi->drm_client);
+	}
 }
 
 static void evdi_crtc_disable(struct drm_crtc *crtc)
 {
-	drm_crtc_vblank_off(crtc);
+	struct evdi_device *evdi = crtc->dev->dev_private;
+	int i;
+
+	if (!crtc->dev->master) {
+		return;
+	}
+
+	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
+		if (&evdi->pipe[i].crtc == crtc)
+			break;
+
+	if (i < LINDROID_MAX_CONNECTORS) {
+		evdi_queue_crtc_state_event(evdi, i, 0, evdi->drm_client);
+	}
 }
 
 static int evdi_crtc_set_config(struct drm_mode_set *set)
 {
+	if (!set->fb || set->num_connectors == 0) {
+		evdi_crtc_disable(set->crtc);
+		return 0;
+	}
+
+	evdi_crtc_enable(set->crtc);
+
 	return 0;
 }
 
@@ -137,8 +166,6 @@ static int evdi_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
 }
 
 static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
-	.mode_set = NULL,
-	.dpms = NULL,
 	.commit = evdi_crtc_commit,
 	.enable = evdi_crtc_enable,
 	.disable = evdi_crtc_disable,
