@@ -10,7 +10,6 @@
  */
 
 #include "evdi_drv.h"
-#include <linux/overflow.h>
 
 static void evdi_fb_destroy(struct drm_framebuffer *fb)
 {
@@ -20,18 +19,6 @@ static void evdi_fb_destroy(struct drm_framebuffer *fb)
 const struct drm_framebuffer_funcs evdifb_funcs = {
 	.destroy = evdi_fb_destroy,
 };
-
-static int evdi_fb_extract_gralloc_id(const struct drm_mode_fb_cmd2 *mode_cmd)
-{
-#if (KERNEL_VERSION(4, 15, 0) <= LINUX_VERSION_CODE)
-	if (mode_cmd->modifier[0])
-		return (int)(mode_cmd->modifier[0] & 0x7fffffff);
-#endif
-	if (mode_cmd->handles[0] > 0xFFFF)
-		return (int)mode_cmd->handles[0];
-
-	return 0;
-}
 
 static unsigned int evdi_fb_cpp(u32 format)
 {
@@ -121,8 +108,6 @@ evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
 			efb->gralloc_buf_id = id;
 		fput(memfd_file);
 	}
-	if (!efb->gralloc_buf_id)
-		efb->gralloc_buf_id = evdi_fb_extract_gralloc_id(mode_cmd);
 
 	ret = evdi_fb_init_core(dev, efb, mode_cmd);
 	if (ret) {

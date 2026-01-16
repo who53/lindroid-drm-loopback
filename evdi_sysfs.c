@@ -10,9 +10,6 @@
  */
 
 #include "evdi_drv.h"
-#include <linux/sysfs.h>
-#include <linux/stat.h>
-#include <linux/idr.h>
 
 extern bool evdi_perf_on;
 extern struct static_key_false evdi_perf_key;
@@ -126,14 +123,6 @@ static ssize_t enable_perf_store(struct device *dev,
 
 static DEVICE_ATTR_RW(enable_perf);
 
-static struct attribute *evdi_sysfs_attrs[] = {
-	NULL,
-};
-
-static const struct attribute_group evdi_sysfs_attr_group = {
-	.attrs = evdi_sysfs_attrs,
-};
-
 static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
@@ -153,18 +142,10 @@ static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
 		"Event system:\n"
 		"  Queue operations: %lld\n"
 		"  Dequeue operations: %lld\n"
-		"  Fast pool allocs: %lld\n"
-		"  Slow path allocs: %lld\n"
-		"  Event per-CPU allocs: %lld\n"
-		"  Event heap allocs: %lld\n"
-		"  Event no allocs: %lld\n"
-		"  Event freelist hits: %lld\n"
-		"  Event freelist misses: %lld\n"
-		"  Event freelist pushes: %lld\n"
+		"  Allocations: %lld\n"
 		"  Wakeups: %lld\n"
 		"  Poll cycles: %lld\n"
-		"  Inflight per-CPU hits: %lld\n"
-		"  Inflight per-CPU misses: %lld\n"
+		"  Callback completions: %lld\n"
 		"=====================================\n",
 		(long long)atomic64_read(&evdi_perf.ioctl_calls[0]),
 		(long long)atomic64_read(&evdi_perf.ioctl_calls[1]),
@@ -175,18 +156,10 @@ static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
 		(long long)atomic64_read(&evdi_perf.ioctl_calls[7]),
 		(long long)atomic64_read(&evdi_perf.event_queue_ops),
 		(long long)atomic64_read(&evdi_perf.event_dequeue_ops),
-		(long long)atomic64_read(&evdi_perf.pool_alloc_fast),
 		(long long)atomic64_read(&evdi_perf.pool_alloc_slow),
-		(long long)atomic64_read(&evdi_perf.event_payload_small_allocs),
-		(long long)atomic64_read(&evdi_perf.event_payload_heap_allocs),
-		(long long)atomic64_read(&evdi_perf.event_payload_none_allocs),
-		(long long)atomic64_read(&evdi_perf.event_freelist_pop_hits),
-		(long long)atomic64_read(&evdi_perf.event_freelist_pop_misses),
-		(long long)atomic64_read(&evdi_perf.event_freelist_pushes),
 		(long long)atomic64_read(&evdi_perf.wakeup_count),
 		(long long)atomic64_read(&evdi_perf.poll_cycles),
-		(long long)atomic64_read(&evdi_perf.inflight_percpu_hits),
-		(long long)atomic64_read(&evdi_perf.inflight_percpu_misses));
+		(long long)atomic64_read(&evdi_perf.callback_completions));
 }
 
 static DEVICE_ATTR_RO(stats);
@@ -203,7 +176,6 @@ static const struct attribute_group evdi_debug_attr_group = {
 };
 
 static const struct attribute_group *evdi_attr_groups[] = {
-	&evdi_sysfs_attr_group,
 	&evdi_debug_attr_group,
 	NULL,
 };
