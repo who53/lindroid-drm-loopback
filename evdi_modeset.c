@@ -122,13 +122,14 @@ static void evdi_crtc_disable(struct drm_crtc *crtc)
 	struct evdi_device *evdi = crtc->dev->dev_private;
 	int i;
 
-	if (!crtc->dev->master) {
-		return;
-	}
-
 	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
 		if (&evdi->pipe[i].crtc == crtc)
 			break;
+
+	if (!crtc->dev->master) {
+		evdi_queue_crtc_state_event(evdi, i, 2, evdi->drm_client);
+		return;
+	}
 
 	if (i < LINDROID_MAX_CONNECTORS) {
 		evdi_queue_crtc_state_event(evdi, i, 0, evdi->drm_client);

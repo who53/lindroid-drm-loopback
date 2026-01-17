@@ -108,7 +108,7 @@ struct drm_evdi_gbm_del_buff {
 
 struct drm_evdi_crtc_state {
 	int display_id;
-	int enabled;
+	int mode;
 };
 
 #define DRM_IOCTL_EVDI_CONNECT \

@@ -1003,12 +1003,12 @@ int evdi_queue_destroy_event(struct evdi_device *evdi, int id,
 }
 
 int evdi_queue_crtc_state_event(struct evdi_device *evdi, int display_id,
-				int enabled, struct drm_file *owner)
+				int mode, struct drm_file *owner)
 {
 	struct evdi_event *event;
 	struct drm_evdi_crtc_state data = {
 		.display_id = display_id,
-		.enabled = enabled,
+		.mode = mode,
 	};
 
 	event = evdi_event_alloc(evdi, crtc_state,
