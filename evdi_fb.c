@@ -89,7 +89,7 @@ evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
 	loff_t pos = 0;
 	ssize_t bytes_read;
 
-	efb = kzalloc(sizeof(*efb), GFP_KERNEL);
+	efb = kzalloc(sizeof(*efb), GFP_ATOMIC);
 	if (!efb) {
 		return ERR_PTR(-ENOMEM);
 	}

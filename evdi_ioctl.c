@@ -203,14 +203,12 @@ int evdi_ioctl_connect(struct drm_device *dev, void *data,
 	if (!cmd->connected) {
 		atomic_set(&evdi->events.stopping, 1);
 		wake_up_interruptible(&evdi->events.wait_queue);
-		mutex_lock(&evdi->config_mutex);
-		evdi->displays[cmd->display_id].connected = false;
-		mutex_unlock(&evdi->config_mutex);
+		WRITE_ONCE(evdi->displays[cmd->display_id].connected, false);
 		{
 			int i, any = 0;
 
 			for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-				any |= evdi->displays[i].connected;
+				any |= READ_ONCE(evdi->displays[i].connected);
 			if (!any)
 				WRITE_ONCE(evdi->drm_client, NULL);
 		}
@@ -225,12 +223,11 @@ int evdi_ioctl_connect(struct drm_device *dev, void *data,
 		wake_up_interruptible(&evdi->events.wait_queue);
 	}
 
-	mutex_lock(&evdi->config_mutex);
-	evdi->displays[cmd->display_id].connected = true;
-	evdi->displays[cmd->display_id].width = cmd->width;
-	evdi->displays[cmd->display_id].height = cmd->height;
-	evdi->displays[cmd->display_id].refresh_rate = cmd->refresh_rate;
-	mutex_unlock(&evdi->config_mutex);
+	WRITE_ONCE(evdi->displays[cmd->display_id].connected, true);
+	WRITE_ONCE(evdi->displays[cmd->display_id].width, cmd->width);
+	WRITE_ONCE(evdi->displays[cmd->display_id].height, cmd->height);
+	WRITE_ONCE(evdi->displays[cmd->display_id].refresh_rate,
+		   cmd->refresh_rate);
 
 	WRITE_ONCE(evdi->drm_client, file);
 	evdi_info("Device %d connected: %ux%u@%uHz id:%u", evdi->dev_index,
@@ -404,13 +401,11 @@ int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data,
 	if (cmd->id && file->driver_priv) {
 		struct evdi_file_priv *priv = file->driver_priv;
 		struct evdi_buffer_entry *entry =
-			kmalloc(sizeof(*entry), GFP_KERNEL);
+			kmalloc(sizeof(*entry), GFP_ATOMIC);
 
 		if (entry) {
 			entry->id = req->reply.create.id;
-			spin_lock(&priv->lock);
-			list_add(&entry->node, &priv->buffers);
-			spin_unlock(&priv->lock);
+			llist_add(&entry->node, &priv->buffers);
 		}
 	}
 

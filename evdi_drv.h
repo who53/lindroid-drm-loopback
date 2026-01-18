@@ -14,7 +14,6 @@
 
 #include <linux/module.h>
 #include <linux/version.h>
-#include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/atomic.h>
@@ -175,13 +174,12 @@ struct evdi_display {
 };
 
 struct evdi_buffer_entry {
-	struct list_head node;
+	struct llist_node node;
 	int id;
 };
 
 struct evdi_file_priv {
-	struct list_head buffers;
-	spinlock_t lock;
+	struct llist_head buffers;
 };
 
 struct evdi_device {
@@ -211,8 +209,6 @@ struct evdi_device {
 		atomic64_t pool_hits;
 		atomic64_t pool_misses;
 	} events;
-
-	struct mutex config_mutex;
 
 	struct platform_device *pdev;
 

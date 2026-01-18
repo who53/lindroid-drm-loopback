@@ -89,7 +89,7 @@ struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
 	if (size > EVDI_PAYLOAD_MAX)
 		return NULL;
 
-	event = kmem_cache_alloc(evdi_event_cache, GFP_KERNEL);
+	event = kmem_cache_alloc(evdi_event_cache, GFP_ATOMIC);
 	if (!event) {
 		atomic64_inc(&evdi->events.pool_misses);
 		return NULL;

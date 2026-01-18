@@ -142,6 +142,8 @@ static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
 		"Event system:\n"
 		"  Queue operations: %lld\n"
 		"  Dequeue operations: %lld\n"
+		"  Current allocated: %d\n"
+		"  Peak allocated: %d\n"
 		"  Allocations: %lld\n"
 		"  Wakeups: %lld\n"
 		"  Poll cycles: %lld\n"
@@ -156,6 +158,8 @@ static ssize_t stats_show(struct device *dev, struct device_attribute *attr,
 		(long long)atomic64_read(&evdi_perf.ioctl_calls[7]),
 		(long long)atomic64_read(&evdi_perf.event_queue_ops),
 		(long long)atomic64_read(&evdi_perf.event_dequeue_ops),
+		(long long)atomic_read(&global_event_pool.allocated),
+		(long long)atomic_read(&global_event_pool.peak_usage),
 		(long long)atomic64_read(&evdi_perf.pool_alloc_slow),
 		(long long)atomic64_read(&evdi_perf.wakeup_count),
 		(long long)atomic64_read(&evdi_perf.poll_cycles),

@@ -39,10 +39,12 @@ static void evdi_do_pipe_update(struct drm_simple_display_pipe *pipe)
 
 	if (efb && efb->owner && efb->gralloc_buf_id && display_id >= 0 &&
 	    display_id < LINDROID_MAX_CONNECTORS) {
-		if (evdi->displays[display_id].last_queued_buf_id == efb->gralloc_buf_id)
+		if (evdi->displays[display_id].last_queued_buf_id ==
+		    efb->gralloc_buf_id)
 			return;
 
-		evdi->displays[display_id].last_queued_buf_id = efb->gralloc_buf_id;
+		evdi->displays[display_id].last_queued_buf_id =
+			efb->gralloc_buf_id;
 		evdi_queue_swap_event(evdi, efb->gralloc_buf_id, display_id,
 				      efb->owner);
 	}
@@ -138,7 +140,8 @@ static void evdi_crtc_disable(struct drm_crtc *crtc)
 	if (i < LINDROID_MAX_CONNECTORS) {
 		evdi->displays[i].last_queued_buf_id = -1;
 		if (!crtc->dev->master) {
-			evdi_queue_crtc_state_event(evdi, i, 2, evdi->drm_client);
+			evdi_queue_crtc_state_event(evdi, i, 2,
+						    evdi->drm_client);
 			return;
 		}
 		evdi_queue_crtc_state_event(evdi, i, 0, evdi->drm_client);

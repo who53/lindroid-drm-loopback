@@ -21,8 +21,7 @@ static int evdi_driver_open(struct drm_device *dev, struct drm_file *file)
 	if (!priv)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&priv->buffers);
-	spin_lock_init(&priv->lock);
+	init_llist_head(&priv->buffers);
 	file->driver_priv = priv;
 
 	return 0;
@@ -32,7 +31,8 @@ static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 {
 	struct evdi_device *evdi = dev->dev_private;
 	struct evdi_file_priv *priv = file->driver_priv;
-	struct evdi_buffer_entry *entry, *tmp;
+	struct llist_node *node;
+	struct evdi_buffer_entry *entry;
 
 	if (unlikely(!evdi))
 		return;
@@ -44,15 +44,16 @@ static void evdi_driver_postclose(struct drm_device *dev, struct drm_file *file)
 	evdi_event_cleanup_file(evdi, file);
 
 	if (priv) {
-		spin_lock(&priv->lock);
-		list_for_each_entry_safe(entry, tmp, &priv->buffers, node) {
+		node = llist_del_all(&priv->buffers);
+		while (node) {
+			entry = llist_entry(node, struct evdi_buffer_entry,
+					    node);
+			node = node->next;
 			if (file != evdi->drm_client && evdi->drm_client)
 				evdi_queue_destroy_event(evdi, entry->id,
 							 evdi->drm_client);
-			list_del(&entry->node);
 			kfree(entry);
 		}
-		spin_unlock(&priv->lock);
 		kfree(priv);
 	}
 }
@@ -137,8 +138,6 @@ int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev)
 		evdi->displays[i].last_queued_buf_id = -1;
 	}
 
-	mutex_init(&evdi->config_mutex);
-
 #ifdef EVDI_HAVE_XARRAY
 	xa_init_flags(&evdi->inflight_xa, XA_FLAGS_ALLOC);
 	evdi->inflight_next_id = 1;
@@ -187,7 +186,6 @@ void evdi_device_cleanup(struct evdi_device *evdi)
 #endif
 
 	evdi_event_cleanup(evdi);
-	mutex_destroy(&evdi->config_mutex);
 }
 
 static int evdi_platform_probe(struct platform_device *pdev)
