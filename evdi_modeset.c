@@ -29,15 +29,23 @@ static void evdi_do_pipe_update(struct drm_simple_display_pipe *pipe)
 	struct drm_framebuffer *fb = pipe->plane.fb;
 	struct evdi_device *evdi = pipe->plane.dev->dev_private;
 	struct evdi_framebuffer *efb;
+	int display_id;
 
 	if (!fb)
 		return;
 
 	efb = to_evdi_fb(fb);
-	if (efb && efb->owner && efb->gralloc_buf_id)
-		evdi_queue_swap_event(
-			evdi, efb->gralloc_buf_id,
-			evdi_connector_slot(evdi, pipe->connector), efb->owner);
+	display_id = evdi_connector_slot(evdi, pipe->connector);
+
+	if (efb && efb->owner && efb->gralloc_buf_id && display_id >= 0 &&
+	    display_id < LINDROID_MAX_CONNECTORS) {
+		if (evdi->displays[display_id].last_queued_buf_id == efb->gralloc_buf_id)
+			return;
+
+		evdi->displays[display_id].last_queued_buf_id = efb->gralloc_buf_id;
+		evdi_queue_swap_event(evdi, efb->gralloc_buf_id, display_id,
+				      efb->owner);
+	}
 }
 
 static int evdi_crtc_page_flip(struct drm_crtc *crtc,
@@ -113,6 +121,7 @@ static void evdi_crtc_enable(struct drm_crtc *crtc)
 			break;
 
 	if (i < LINDROID_MAX_CONNECTORS) {
+		evdi->displays[i].last_queued_buf_id = -1;
 		evdi_queue_crtc_state_event(evdi, i, 1, evdi->drm_client);
 	}
 }
@@ -126,12 +135,12 @@ static void evdi_crtc_disable(struct drm_crtc *crtc)
 		if (&evdi->pipe[i].crtc == crtc)
 			break;
 
-	if (!crtc->dev->master) {
-		evdi_queue_crtc_state_event(evdi, i, 2, evdi->drm_client);
-		return;
-	}
-
 	if (i < LINDROID_MAX_CONNECTORS) {
+		evdi->displays[i].last_queued_buf_id = -1;
+		if (!crtc->dev->master) {
+			evdi_queue_crtc_state_event(evdi, i, 2, evdi->drm_client);
+			return;
+		}
 		evdi_queue_crtc_state_event(evdi, i, 0, evdi->drm_client);
 	}
 }

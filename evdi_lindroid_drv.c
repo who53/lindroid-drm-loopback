@@ -134,6 +134,7 @@ int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev)
 		evdi->displays[i].height = 1080;
 		evdi->displays[i].refresh_rate = 60;
 		evdi->connector[i] = NULL;
+		evdi->displays[i].last_queued_buf_id = -1;
 	}
 
 	mutex_init(&evdi->config_mutex);

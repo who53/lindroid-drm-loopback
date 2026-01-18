@@ -171,6 +171,7 @@ struct evdi_display {
 	uint32_t width;
 	uint32_t height;
 	uint32_t refresh_rate;
+	int last_queued_buf_id;
 };
 
 struct evdi_buffer_entry {
