@@ -53,7 +53,12 @@ struct drm_evdi_poll {
 	void *data;
 };
 
-struct drm_evdi_get_buff_callabck {
+struct drm_evdi_gbm_get_buff {
+	int id;
+	void *native_handle;
+};
+
+struct drm_evdi_get_buff_callback {
 	int poll_id;
 	int version;
 	int numFds;
@@ -123,8 +128,7 @@ struct drm_evdi_crtc_state {
 
 #define DRM_IOCTL_EVDI_GET_BUFF_CALLBACK                        \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_EVDI_GET_BUFF_CALLBACK, \
-		 struct drm_evdi_get_buff_callabck)
-
+		 struct drm_evdi_get_buff_callback)
 #define DRM_IOCTL_EVDI_DESTROY_BUFF_CALLBACK                        \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_EVDI_DESTROY_BUFF_CALLBACK, \
 		 struct drm_evdi_destroy_buff_callback)
@@ -140,7 +144,6 @@ struct drm_evdi_crtc_state {
 #define DRM_IOCTL_EVDI_GBM_CREATE_BUFF_CALLBACK                        \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_EVDI_GBM_CREATE_BUFF_CALLBACK, \
 		 struct drm_evdi_create_buff_callabck)
-
 #define DRM_IOCTL_EVDI_GBM_DEL_BUFF                        \
 	DRM_IOWR(DRM_COMMAND_BASE + DRM_EVDI_GBM_DEL_BUFF, \
 		 struct drm_evdi_gbm_del_buff)

@@ -69,13 +69,6 @@
 #undef EVDI_HAVE_XARRAY
 #endif
 
-#if KERNEL_VERSION(5, 11, 0) <= LINUX_VERSION_CODE
-#include <drm/drm_managed.h>
-#define EVDI_HAVE_DRM_MANAGED 1
-#else
-#undef EVDI_HAVE_DRM_MANAGED
-#endif
-
 #if KERNEL_VERSION(5, 10, 0) <= LINUX_VERSION_CODE
 #define EVDI_HAVE_ATOMIC_CMPXCHG_RELAXED 1
 #endif
@@ -102,21 +95,6 @@
 
 #define LINDROID_MAX_CONNECTORS 5
 
-struct evdi_device;
-
-struct evdi_gralloc_buf_user {
-	int version;
-	int numFds;
-	int numInts;
-	int data[EVDI_MAX_FDS + EVDI_MAX_INTS];
-};
-
-struct evdi_event_pool {
-	atomic_t allocated;
-	atomic_t inflight_allocated;
-	atomic_t peak_usage;
-};
-
 struct evdi_event {
 	enum poll_event_type type;
 	int poll_id;
@@ -125,7 +103,6 @@ struct evdi_event {
 	struct evdi_event *next;
 	struct drm_file *owner;
 	struct llist_node llist;
-	struct evdi_device *evdi;
 	atomic_t freed;
 };
 
@@ -138,25 +115,16 @@ struct evdi_gralloc_data {
 };
 
 struct evdi_inflight_req {
-	int type;
+	enum poll_event_type type;
 	struct completion done;
 	struct drm_file *owner;
 	struct kref refcount;
-	atomic_t freed;
 	union {
 		struct {
 			int id;
 			u32 stride;
 		} create;
-		struct {
-			int status;
-			struct {
-				int version;
-				int numFds;
-				int numInts;
-				struct evdi_gralloc_data gralloc;
-			} gralloc_buf;
-		} get_buf;
+		struct evdi_gralloc_data gralloc;
 	} reply;
 };
 
@@ -195,22 +163,15 @@ struct evdi_device {
 
 	struct {
 		spinlock_t lock;
-		atomic_t cleanup_in_progress;
-		struct evdi_event *volatile head;
-		struct evdi_event *volatile tail;
+		struct evdi_event *head;
+		struct evdi_event *tail;
 		struct llist_head lockfree_head;
 		wait_queue_head_t wait_queue;
 		atomic_t wake_pending;
 		atomic_t queue_size;
 		atomic_t next_poll_id;
 		atomic_t stopping;
-		atomic64_t events_queued;
-		atomic64_t events_dequeued;
-		atomic64_t pool_hits;
-		atomic64_t pool_misses;
 	} events;
-
-	struct platform_device *pdev;
 
 #ifdef EVDI_HAVE_XARRAY
 	struct xarray inflight_xa;
@@ -225,7 +186,6 @@ struct evdi_inflight_req;
 void evdi_inflight_req_get(struct evdi_inflight_req *req);
 void evdi_inflight_req_put(struct evdi_inflight_req *req);
 
-extern struct evdi_event_pool global_event_pool;
 extern atomic_t evdi_device_count;
 
 extern struct kmem_cache *evdi_event_cache;
@@ -299,7 +259,6 @@ evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
 
 struct evdi_framebuffer {
 	struct drm_framebuffer base;
-	bool active;
 	int gralloc_buf_id;
 	struct drm_file *owner;
 };
@@ -314,11 +273,6 @@ static __always_inline bool evdi_likely_connected(struct evdi_device *evdi,
 {
 	return likely(id >= 0 && id < LINDROID_MAX_CONNECTORS &&
 		      READ_ONCE(evdi->displays[id].connected));
-}
-
-static __always_inline bool evdi_likely_not_stopping(struct evdi_device *evdi)
-{
-	return likely(!atomic_read(&evdi->events.stopping));
 }
 
 /* Macros */
@@ -371,12 +325,12 @@ struct evdi_perf_counters {
 	atomic64_t ioctl_calls[16];
 	atomic64_t event_queue_ops;
 	atomic64_t event_dequeue_ops;
-	atomic64_t pool_alloc_fast;
-	atomic64_t pool_alloc_slow;
+	atomic64_t pool_alloc;
 	atomic64_t wakeup_count;
 	atomic64_t poll_cycles;
 	atomic64_t callback_completions;
-	atomic64_t event_payload_allocs;
+	atomic_t event_allocated;
+	atomic_t event_peak_usage;
 };
 
 extern struct evdi_perf_counters evdi_perf;

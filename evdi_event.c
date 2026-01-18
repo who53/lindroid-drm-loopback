@@ -11,7 +11,6 @@
 
 #include "evdi_drv.h"
 
-struct evdi_event_pool global_event_pool = { 0 };
 struct kmem_cache *evdi_event_cache, *evdi_inflight_cache;
 DEFINE_STATIC_KEY_FALSE(evdi_perf_key);
 bool evdi_perf_on;
@@ -39,7 +38,7 @@ void evdi_event_system_cleanup(void)
 
 	if (evdi_perf_on) {
 		evdi_info("Event system cleaned up - Peak: %d",
-			  atomic_read(&global_event_pool.peak_usage));
+			  atomic_read(&evdi_perf.event_peak_usage));
 	}
 }
 
@@ -90,12 +89,10 @@ struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
 		return NULL;
 
 	event = kmem_cache_alloc(evdi_event_cache, GFP_ATOMIC);
-	if (!event) {
-		atomic64_inc(&evdi->events.pool_misses);
+	if (!event)
 		return NULL;
-	}
 
-	EVDI_PERF_INC64(&evdi_perf.pool_alloc_slow);
+	EVDI_PERF_INC64(&evdi_perf.pool_alloc);
 
 	event->type = type;
 	event->poll_id = poll_id;
@@ -106,13 +103,12 @@ struct evdi_event *evdi_event_alloc(struct evdi_device *evdi,
 
 	event->next = NULL;
 	event->owner = owner;
-	event->evdi = evdi;
 	atomic_set(&event->freed, 0);
 
-	current_allocated = atomic_inc_return(&global_event_pool.allocated);
+	current_allocated = atomic_inc_return(&evdi_perf.event_allocated);
 	while (current_allocated >
-	       (peak = atomic_read(&global_event_pool.peak_usage))) {
-		if (atomic_cmpxchg(&global_event_pool.peak_usage, peak,
+	       (peak = atomic_read(&evdi_perf.event_peak_usage))) {
+		if (atomic_cmpxchg(&evdi_perf.event_peak_usage, peak,
 				   current_allocated) == peak)
 			break;
 	}
@@ -124,20 +120,16 @@ static void evdi_inflight_req_release(struct kref *kref)
 {
 	struct evdi_inflight_req *req =
 		container_of(kref, struct evdi_inflight_req, refcount);
-	struct evdi_gralloc_data *gralloc =
-		&req->reply.get_buf.gralloc_buf.gralloc;
 	int i;
 
-	if (atomic_xchg(&req->freed, 1))
-		return;
-
-	for (i = 0; i < gralloc->numFds; i++) {
-		if (gralloc->data_files[i])
-			fput(gralloc->data_files[i]);
+	if (req->type == get_buf) {
+		for (i = 0; i < req->reply.gralloc.numFds; i++) {
+			if (req->reply.gralloc.data_files[i])
+				fput(req->reply.gralloc.data_files[i]);
+		}
 	}
 
 	kmem_cache_free(evdi_inflight_cache, req);
-	atomic_dec(&global_event_pool.inflight_allocated);
 }
 
 void evdi_inflight_req_get(struct evdi_inflight_req *req)
@@ -162,7 +154,6 @@ struct evdi_inflight_req *evdi_inflight_req_alloc(struct evdi_device *evdi)
 
 	kref_init(&req->refcount);
 	init_completion(&req->done);
-	atomic_inc(&global_event_pool.inflight_allocated);
 
 	return req;
 }
@@ -170,7 +161,7 @@ struct evdi_inflight_req *evdi_inflight_req_alloc(struct evdi_device *evdi)
 void evdi_event_free(struct evdi_event *event)
 {
 	if (event && !atomic_xchg(&event->freed, 1)) {
-		atomic_dec(&global_event_pool.allocated);
+		atomic_dec(&evdi_perf.event_allocated);
 		kmem_cache_free(evdi_event_cache, event);
 	}
 }
@@ -259,8 +250,6 @@ void evdi_event_cleanup_file(struct evdi_device *evdi, struct drm_file *file)
 	if (!evdi || !file)
 		return;
 
-	atomic_set(&evdi->events.cleanup_in_progress, 1);
-
 	llnode = llist_del_all(&evdi->events.lockfree_head);
 	while (llnode) {
 		llnext = llnode->next;
@@ -295,7 +284,6 @@ void evdi_event_cleanup_file(struct evdi_device *evdi, struct drm_file *file)
 	evdi->events.tail = new_tail;
 	spin_unlock(&evdi->events.lock);
 
-	atomic_set(&evdi->events.cleanup_in_progress, 0);
 	wake_up_interruptible(&evdi->events.wait_queue);
 }
 

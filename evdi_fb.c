@@ -95,7 +95,6 @@ evdi_fb_user_fb_create(struct drm_device *dev, struct drm_file *file,
 	}
 
 	efb->owner = file;
-	efb->active = true;
 	memfd_file = fget(mode_cmd->handles[0]);
 	if (memfd_file) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)

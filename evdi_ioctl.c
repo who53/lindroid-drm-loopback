@@ -12,7 +12,10 @@
 #include "evdi_drv.h"
 
 struct evdi_gralloc_buf_stack {
-	struct evdi_gralloc_buf_user buf;
+	int version;
+	int numFds;
+	int numInts;
+	int data[EVDI_MAX_FDS + EVDI_MAX_INTS];
 	int installed_fds[EVDI_MAX_FDS];
 };
 
@@ -35,7 +38,8 @@ static int evdi_queue_new_event(struct evdi_device *evdi,
 
 static struct evdi_inflight_req *evdi_inflight_alloc(struct evdi_device *evdi,
 						     struct drm_file *owner,
-						     int type, int *out_id)
+						     enum poll_event_type type,
+						     int *out_id)
 {
 	struct evdi_inflight_req *req = evdi_inflight_req_alloc(evdi);
 	int id;
@@ -303,13 +307,13 @@ int evdi_ioctl_gbm_get_buff(struct drm_device *dev, void *data,
 		return -ETIMEDOUT;
 	}
 
-	gralloc = &req->reply.get_buf.gralloc_buf.gralloc;
-	stack.buf.version = gralloc->version;
-	stack.buf.numFds = gralloc->numFds;
-	stack.buf.numInts = gralloc->numInts;
+	gralloc = &req->reply.gralloc;
+	stack.version = gralloc->version;
+	stack.numFds = gralloc->numFds;
+	stack.numInts = gralloc->numInts;
 
 	if (gralloc->numInts > 0)
-		memcpy(&stack.buf.data[gralloc->numFds], gralloc->data_ints,
+		memcpy(&stack.data[gralloc->numFds], gralloc->data_ints,
 		       sizeof(int) * gralloc->numInts);
 
 	for (i = 0; i < gralloc->numFds; i++) {
@@ -321,10 +325,10 @@ int evdi_ioctl_gbm_get_buff(struct drm_device *dev, void *data,
 			evdi_inflight_req_put(req);
 			return fd;
 		}
-		stack.installed_fds[i] = stack.buf.data[i] = fd;
+		stack.installed_fds[i] = stack.data[i] = fd;
 	}
 
-	ret = copy_to_user(cmd->native_handle, &stack.buf,
+	ret = copy_to_user(cmd->native_handle, &stack,
 			   sizeof(int) *
 				   (3 + gralloc->numFds + gralloc->numInts)) ?
 		      -EFAULT :
@@ -422,7 +426,7 @@ int evdi_ioctl_gbm_create_buff(struct drm_device *dev, void *data,
 int evdi_ioctl_get_buff_callback(struct drm_device *dev, void *data,
 				 struct drm_file *file)
 {
-	struct drm_evdi_get_buff_callabck *cb = data;
+	struct drm_evdi_get_buff_callback *cb = data;
 	struct evdi_inflight_req *req =
 		evdi_inflight_take(dev->dev_private, cb->poll_id);
 	struct evdi_gralloc_data *gralloc;
@@ -437,7 +441,7 @@ int evdi_ioctl_get_buff_callback(struct drm_device *dev, void *data,
 	    cb->numInts > EVDI_MAX_INTS)
 		goto out_complete;
 
-	gralloc = &req->reply.get_buf.gralloc_buf.gralloc;
+	gralloc = &req->reply.gralloc;
 	gralloc->version = cb->version;
 	gralloc->numFds = gralloc->numInts = 0;
 
@@ -489,7 +493,7 @@ int evdi_ioctl_swap_callback(struct drm_device *dev, void *data,
 int evdi_ioctl_create_buff_callback(struct drm_device *dev, void *data,
 				    struct drm_file *file)
 {
-	struct drm_evdi_create_buff_callabck *cb = data;
+	struct drm_evdi_create_buff_callback *cb = data;
 	struct evdi_inflight_req *req =
 		evdi_inflight_take(dev->dev_private, cb->poll_id);
 

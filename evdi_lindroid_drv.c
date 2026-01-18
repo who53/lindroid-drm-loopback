@@ -146,8 +146,6 @@ int evdi_device_init(struct evdi_device *evdi, struct platform_device *pdev)
 	spin_lock_init(&evdi->inflight_lock);
 #endif
 
-	evdi->pdev = pdev;
-
 	return evdi_event_init(evdi);
 }
 
