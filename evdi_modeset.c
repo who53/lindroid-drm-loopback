@@ -80,39 +80,6 @@ static int evdi_crtc_page_flip(struct drm_crtc *crtc,
 	return 0;
 }
 
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
-static void evdi_pipe_update(struct drm_simple_display_pipe *pipe,
-			     struct drm_plane_state *old_state)
-{
-	struct drm_plane_state *state = pipe->plane.state;
-	if (state && old_state && old_state->fb == state->fb)
-		return;
-	evdi_do_pipe_update(pipe);
-}
-#else
-static void evdi_pipe_update(struct drm_simple_display_pipe *pipe)
-{
-	evdi_do_pipe_update(pipe);
-}
-#endif
-
-static void evdi_crtc_commit(struct drm_crtc *crtc)
-{
-	struct evdi_device *evdi = crtc->dev->dev_private;
-	int i;
-	for (i = 0; i < LINDROID_MAX_CONNECTORS; i++)
-		if (&evdi->pipe[i].crtc == crtc)
-			break;
-
-	if (i < LINDROID_MAX_CONNECTORS)
-		evdi_pipe_update(&evdi->pipe[i]
-#if KERNEL_VERSION(4, 14, 0) <= LINUX_VERSION_CODE
-				 ,
-				 NULL
-#endif
-		);
-}
-
 static void evdi_crtc_enable(struct drm_crtc *crtc)
 {
 	struct evdi_device *evdi = crtc->dev->dev_private;
@@ -179,13 +146,11 @@ static int evdi_crtc_gamma_set(struct drm_crtc *crtc, u16 *r, u16 *g, u16 *b,
 }
 
 static const struct drm_crtc_helper_funcs evdi_crtc_helper_funcs = {
-	.commit = evdi_crtc_commit,
 	.enable = evdi_crtc_enable,
 	.disable = evdi_crtc_disable,
 };
 
 static const struct drm_crtc_funcs evdi_crtc_funcs = {
-	.reset = NULL,
 	.destroy = drm_crtc_cleanup,
 	.set_config = evdi_crtc_set_config,
 	.page_flip = evdi_crtc_page_flip,
@@ -198,7 +163,6 @@ static const struct drm_plane_funcs evdi_plane_funcs = {
 	.update_plane = drm_plane_helper_update,
 	.disable_plane = drm_plane_helper_disable,
 	.destroy = drm_plane_cleanup,
-	.reset = NULL,
 };
 
 static const struct drm_encoder_funcs evdi_encoder_funcs = {
